@@ -1,9 +1,10 @@
-module github.com/JeffAshton/terraform-provider-jsonschema
+module github.com/iilei/terraform-provider-jsonschema
 
-go 1.21
+go 1.25
 
 require (
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.7.0
+	github.com/titanous/json5 v1.0.0
 	github.com/xeipuuv/gojsonschema v1.2.0
 )
 
@@ -59,8 +60,8 @@ require (
 	golang.org/x/crypto v0.0.0-20210817164053-32db794688a5 // indirect
 	golang.org/x/net v0.0.0-20210813160813-60bc85c4be6d // indirect
 	golang.org/x/oauth2 v0.0.0-20210819190943-2bc19b11175f // indirect
-	golang.org/x/sys v0.0.0-20210819135213-f52c844e1c1c // indirect
-	golang.org/x/text v0.3.7 // indirect
+	golang.org/x/sys v0.0.0-20220722155257-8c9f86f7a55f // indirect
+	golang.org/x/text v0.4.0 // indirect
 	google.golang.org/api v0.54.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20210819152826-bb2f42df81c9 // indirect
