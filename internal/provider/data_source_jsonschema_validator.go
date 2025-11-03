@@ -81,74 +81,110 @@ func dataSourceJsonschemaValidatorRead(d *schema.ResourceData, m interface{}) er
         result       = new(gojsonschema.Result)
     )
 
-    document := d.Get("document").(string)
-    schemaJson5 := d.Get("schema").(string)
+	document := d.Get("document").(string)
+	schemaJson5 := d.Get("schema").(string)
 
-    // Convert JSON5 schema to regular JSON
-    var schemaData interface{}
-    if err := json5.Unmarshal([]byte(schemaJson5), &schemaData); err != nil {
-        return fmt.Errorf("invalid JSON5 schema: %v", err)
-    }
+	// Convert JSON5 schema to regular JSON
+	var schemaData interface{}
+	if err := json5.Unmarshal([]byte(schemaJson5), &schemaData); err != nil {
+		return fmt.Errorf("invalid JSON5 schema: %v", err)
+	}
 
-    // Get ref patterns from provider config
-    var patterns []string
-    if m != nil {
-        if p, ok := m.(map[string]interface{})["ref_patterns"]; ok {
-            for _, pattern := range p.(*schema.Set).List() {
-                patterns = append(patterns, pattern.(string))
-            }
-        }
-    }
+	// Get ref patterns from provider config
+	var patterns []string
+	if m != nil {
+		if p, ok := m.(map[string]interface{})["ref_patterns"]; ok {
+			for _, pattern := range p.(*schema.Set).List() {
+				patterns = append(patterns, pattern.(string))
+			}
+		}
+	}
 
-    // Create resolver
-    resolver, err := NewRefResolver(patterns)
-    if err != nil {
-        return fmt.Errorf("failed to create ref resolver: %v", err)
-    }
+	// Create resolver
+	resolver, err := NewRefResolver(patterns)
+	if err != nil {
+		return fmt.Errorf("failed to create ref resolver: %v", err)
+	}
 
-    // Resolve refs in schema
-    resolvedSchema, err := resolver.ResolveRefs(schemaData)
-    if err != nil {
-        return fmt.Errorf("failed to resolve refs: %v", err)
-    }
+	// Resolve refs in schema
+	resolvedSchema, err := resolver.ResolveRefs(schemaData)
+	if err != nil {
+		return fmt.Errorf("failed to resolve refs: %v", err)
+	}
 
-    // Convert back to JSON string
-    schemaJson, err := json.Marshal(resolvedSchema)
-    if err != nil {
-        return fmt.Errorf("error converting schema to JSON: %v", err)
-    }
+	// Convert back to JSON string
+	schemaJson, err := json.Marshal(resolvedSchema)
+	if err != nil {
+		return fmt.Errorf("error converting schema to JSON: %v", err)
+	}
 
-    schemaLoader := gojsonschema.NewStringLoader(string(schemaJson))
-    documentLoader := gojsonschema.NewStringLoader(document)
+	schemaLoader := gojsonschema.NewStringLoader(string(schemaJson))
+	documentLoader := gojsonschema.NewStringLoader(document)
 
-    result, err = gojsonschema.Validate(schemaLoader, documentLoader)
-    if err == nil {
-        if result.Valid() {
-            err = d.Set("validated", document)
-        } else {
-            message := "The document is not valid. see errors:\n"
-            for _, desc := range result.Errors() {
-                message += fmt.Sprintf("[%s]\n", desc)
-            }
-            err = errors.New(message)
-        }
-    }
+	// Validate
+	result, err = gojsonschema.Validate(schemaLoader, documentLoader)
+	if err != nil {
+		return fmt.Errorf("error during validation: %v", err)
+	}
 
-    if err != nil {
-        return err
-    }
+	if result.Valid() {
+		if err := d.Set("validated", document); err != nil {
+			return fmt.Errorf("failed to set validated document: %v", err)
+		}
+	} else {
+		// Build error message
+		message := "The document is not valid. See errors:\n"
 
-	// Canonicalize both document and schema before hashing
-    canonicalDoc, err := canonicalizeJSON(document)
-    if err != nil {
-        return fmt.Errorf("error canonicalizing document: %v", err)
-    }
-    
-    canonicalSchema := schemaJson // Use the already marshaled version
-    
-    compositeString := fmt.Sprintf("%s:%s", canonicalDoc, canonicalSchema)
-    d.SetId(hash(compositeString))
-    return nil
+		// Parse schema for descriptions safely
+		var schemaMap map[string]interface{}
+		if schemaBytes, e := schemaLoader.LoadJSON(); e == nil {
+			if sm, ok := schemaBytes.(map[string]interface{}); ok {
+				schemaMap = sm
+			}
+		}
+
+		lookupDescription := func(schema map[string]interface{}, field string) string {
+			if schema == nil {
+				return ""
+			}
+			props, ok := schema["properties"].(map[string]interface{})
+			if !ok {
+				return ""
+			}
+			prop, ok := props[field].(map[string]interface{})
+			if !ok {
+				return ""
+			}
+			if d, ok := prop["description"].(string); ok {
+				return d
+			}
+			return ""
+		}
+
+		for _, verr := range result.Errors() {
+			field := verr.Field()
+			desc := lookupDescription(schemaMap, field)
+			message += fmt.Sprintf("- %s: %s", field, verr.Description())
+			if desc != "" {
+				message += fmt.Sprintf(" -- %s", desc)
+			}
+			message += "\n"
+		}
+
+		return errors.New(message)
+	}
+
+	// Canonicalize document
+	canonicalDoc, err := canonicalizeJSON(document)
+	if err != nil {
+		return fmt.Errorf("error canonicalizing document: %v", err)
+	}
+
+	// Use already marshaled schema
+	compositeString := fmt.Sprintf("%s:%s", canonicalDoc, schemaJson)
+	d.SetId(hash(compositeString))
+
+	return nil
 }
 
 

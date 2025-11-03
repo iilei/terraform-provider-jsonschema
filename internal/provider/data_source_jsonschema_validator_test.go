@@ -7,6 +7,7 @@ import (
     "testing"
     "github.com/titanous/json5"
     "encoding/json"
+     "strings"
 )
 
 
@@ -219,6 +220,47 @@ func Test_dataSourceJsonschemaValidatorRead(t *testing.T) {
 		})
 	}
 }
+
+func Test_dataSourceJsonschemaValidatorDescriptionInError(t *testing.T) {
+	schemaWithDescription := `{
+		"type": "object",
+		"properties": {
+			"tags": {
+				"type": "array",
+				"description": "A list of tags (must be an array of strings)",
+				"items": { "type": "string" }
+			}
+		},
+		"required": ["tags"]
+	}`
+
+	invalidDocument := `{"tags": "not-an-array"}`
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:          func() { testAccPreCheck(t) },
+		ProviderFactories: providerFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: makeDataSource(invalidDocument, schemaWithDescription),
+				Check:  resource.ComposeAggregateTestCheckFunc(),
+			},
+		},
+        ErrorCheck: func(err error) error {
+            if err == nil {
+                return fmt.Errorf("error expected due to invalid document")
+            }
+
+            expectedDesc := "A list of tags (must be an array of strings)"
+            if !strings.Contains(err.Error(), expectedDesc) {
+                return fmt.Errorf("expected schema description in error message, got: %s", err.Error())
+            }
+
+            return nil
+        },
+
+	})
+}
+
 
 func makeDataSource(document string, schema string) string {
 	return fmt.Sprintf(`
