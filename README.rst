@@ -3,9 +3,6 @@ terraform-provider-jsonschema
 =============================
 
 .. contents::
-    :local:
-    :depth: 2
-
 
 Abstract
 ========
@@ -22,72 +19,84 @@ On |terraform|_ versions 0.13+ use:
   terraform {
     required_providers {
       jsonschema = {
-        source = "iilei/jsonschema"
-        version = "0.2.0"
+        source = "ileil/jsonschema"
       }
     }
   }
 
-For |terraform|_ versions 0.12 or lower use instructions: |terraform-install-plugin|_
+Features
+========
 
-Usage
-=====
+JSON Schema Validation
+---------------------
 
-See |user-docs|_ for details.
+Basic Example:
 
-Example:
+.. code-block:: terraform
 
-.. code-block::
+    # Basic JSON validation
+    data "jsonschema_validator" "config" {
+      document = file("${path.module}/config.json")
+      schema   = file("${path.module}/schema.json")
+    }
 
-  #: Validate values file
-  data "jsonschema_validator" "values" {
-    document = file("/path/to/document.json")
-    schema = file("/path/to/schema.json")
-  }
+    # Using JSON5 for improved schema readability
+    data "jsonschema_validator" "api_spec" {
+      document = file("${path.module}/api-spec.json")
+      schema   = file("${path.module}/schema.json5")  # JSON5 supports comments and trailing commas
+    }
 
-  #: Install a helm release with the validated json
-  resource "helm_release" "service_overview" {
-    values = [
-      data.jsonschema_validator.values.validated,
-    ]
-  }
+    # Example schema.json5
+    # {
+    #   // JSON Schema with comments
+    #   type: "object",
+    #   required: ["version", "name"],
+    #   properties: {
+    #     version: { type: "string" },
+    #     name: { type: "string" },
+    #   },
+    # }
 
-Development
-===========
+    output "is_valid" {
+      value = data.jsonschema_validator.config.validated
+    }
 
-This repository follows structure of |terraform-provider-scaffolding|_ template
-recommended by |terraform|_ developers (see |terraform-publishing-provider|_).
+Schema Reference Resolution
+-------------------------
 
-For publishing it uses Gitlab Actions.
+The provider supports resolving ``$ref`` references in JSON schemas. For security reasons,
+references are restricted to allowed file paths configured in the provider:
 
-Environment requirements:
+.. code-block:: terraform
 
-- |go|_ 1.15 (to build the provider plugin)
 
-Running tests:
+    locals {
+      # Look for schemas in parent directories
+      schema_root = dirname(find_in_parent_folders("schemas"))
+    }
 
-.. code-block:: bash
+    provider "jsonschema" {
+      ref_patterns = [
+        "${local.schema_root}/**/*.json",  # Allow all schemas under schema root
+        "**/*.json"                        # Allow relative paths from schema location
+      ]
+    }
 
-  make testacc
+    data "jsonschema_validator" "values" {
+      document = file("${path.module}/values/document.json")
+      schema   = file("${local.schema_root}/main.json")
+    }
 
+
+
+The ``ref_patterns`` use the glob pattern syntax from `gobwas/glob <https://github.com/gobwas/glob>`_.
+
+Security Note: References are restricted to local files matching the configured patterns
+to prevent potential security issues like path traversal or remote code loading.
 
 .. |terraform| replace:: Terraform
-.. _terraform: https://www.terraform.io/
-
-.. |terraform-install-plugin| replace:: install a terraform plugin
-.. _terraform-install-plugin: https://www.terraform.io/docs/plugins/basics.html#installing-a-plugin
-
-.. |user-docs| replace:: User Documentation
-.. _user-docs: https://registry.terraform.io/providers/iilei/jsonschema/latest/docs
-
-.. |json-schema| replace:: json-schema
+.. _terraform: https://www.terraform.io
+.. |json-schema| replace:: JSON Schema
 .. _json-schema: https://json-schema.org/
-
-.. |terraform-provider-scaffolding| replace:: terraform-provider-scaffolding
-.. _terraform-provider-scaffolding: https://github.com/hashicorp/terraform-provider-scaffolding
-
-.. |terraform-publishing-provider| replace:: Publishing Providers
-.. _terraform-publishing-provider: https://www.terraform.io/docs/registry/providers/publishing.html
-
-.. |go| replace:: Go
-.. _go: https://golang.org/doc/install
+.. |user-docs| replace:: User Documentation
+.. _user-docs: docs/index.md

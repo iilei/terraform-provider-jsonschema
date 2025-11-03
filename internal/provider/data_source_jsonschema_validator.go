@@ -90,8 +90,30 @@ func dataSourceJsonschemaValidatorRead(d *schema.ResourceData, m interface{}) er
         return fmt.Errorf("invalid JSON5 schema: %v", err)
     }
 
+    // Get ref patterns from provider config
+    var patterns []string
+    if m != nil {
+        if p, ok := m.(map[string]interface{})["ref_patterns"]; ok {
+            for _, pattern := range p.(*schema.Set).List() {
+                patterns = append(patterns, pattern.(string))
+            }
+        }
+    }
+
+    // Create resolver
+    resolver, err := NewRefResolver(patterns)
+    if err != nil {
+        return fmt.Errorf("failed to create ref resolver: %v", err)
+    }
+
+    // Resolve refs in schema
+    resolvedSchema, err := resolver.ResolveRefs(schemaData)
+    if err != nil {
+        return fmt.Errorf("failed to resolve refs: %v", err)
+    }
+
     // Convert back to JSON string
-    schemaJson, err := json.Marshal(schemaData)
+    schemaJson, err := json.Marshal(resolvedSchema)
     if err != nil {
         return fmt.Errorf("error converting schema to JSON: %v", err)
     }

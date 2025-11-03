@@ -3,6 +3,8 @@ module github.com/iilei/terraform-provider-jsonschema
 go 1.25
 
 require (
+	github.com/gobwas/glob v0.2.3
+	github.com/google/go-cmp v0.7.0
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.7.0
 	github.com/titanous/json5 v1.0.0
 	github.com/xeipuuv/gojsonschema v1.2.0
