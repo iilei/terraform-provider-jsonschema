@@ -213,6 +213,113 @@ func TestRefResolver_ResolveRefs(t *testing.T) {
                 },
             },
         },
+        {
+            name:     "fragment-only ref resolves against root document",
+            patterns: []string{"./schemas/*.json"},
+            schema: map[string]interface{}{
+                "definitions": map[string]interface{}{
+                    "Address": map[string]interface{}{
+                        "type": "object",
+                        "properties": map[string]interface{}{
+                            "street": map[string]interface{}{"type": "string"},
+                            "city":   map[string]interface{}{"type": "string"},
+                        },
+                    },
+                    "Person": map[string]interface{}{
+                        "type": "object",
+                        "properties": map[string]interface{}{
+                            "name": map[string]interface{}{"type": "string"},
+                            "address": map[string]interface{}{
+                                "$ref": "#/definitions/Address",
+                            },
+                        },
+                    },
+                },
+                "type": "object",
+                "properties": map[string]interface{}{
+                    "user": map[string]interface{}{
+                        "$ref": "#/definitions/Person",
+                    },
+                },
+            },
+            basePath: mainSchemaPath,
+            wantErr:  false,
+            want: map[string]interface{}{
+                "definitions": map[string]interface{}{
+                    "Address": map[string]interface{}{
+                        "type": "object",
+                        "properties": map[string]interface{}{
+                            "street": map[string]interface{}{"type": "string"},
+                            "city":   map[string]interface{}{"type": "string"},
+                        },
+                    },
+                    "Person": map[string]interface{}{
+                        "type": "object",
+                        "properties": map[string]interface{}{
+                            "name": map[string]interface{}{"type": "string"},
+                            "address": map[string]interface{}{
+                                "type": "object",
+                                "properties": map[string]interface{}{
+                                    "street": map[string]interface{}{"type": "string"},
+                                    "city":   map[string]interface{}{"type": "string"},
+                                },
+                            },
+                        },
+                    },
+                },
+                "type": "object",
+                "properties": map[string]interface{}{
+                    "user": map[string]interface{}{
+                        "type": "object",
+                        "properties": map[string]interface{}{
+                            "name": map[string]interface{}{"type": "string"},
+                            "address": map[string]interface{}{
+                                "type": "object",
+                                "properties": map[string]interface{}{
+                                    "street": map[string]interface{}{"type": "string"},
+                                    "city":   map[string]interface{}{"type": "string"},
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+        {
+            name:     "fragment-only ref without leading slash resolves against root document",
+            patterns: []string{"./schemas/*.json"},
+            schema: map[string]interface{}{
+                "definitions": map[string]interface{}{
+                    "Color": map[string]interface{}{
+                        "type": "string",
+                        "enum": []interface{}{"red", "green", "blue"},
+                    },
+                },
+                "type": "object",
+                "properties": map[string]interface{}{
+                    "favoriteColor": map[string]interface{}{
+                        "$ref": "#definitions/Color",
+                    },
+                },
+            },
+            basePath: mainSchemaPath,
+            wantErr:  false,
+            want: map[string]interface{}{
+                "definitions": map[string]interface{}{
+                    "Color": map[string]interface{}{
+                        "type": "string",
+                        "enum": []interface{}{"red", "green", "blue"},
+                    },
+                },
+                "type": "object",
+                "properties": map[string]interface{}{
+                    "favoriteColor": map[string]interface{}{
+                        "type": "string",
+                        "enum": []interface{}{"red", "green", "blue"},
+                    },
+                },
+            },
+        },
     }
 
     for _, tt := range tests {

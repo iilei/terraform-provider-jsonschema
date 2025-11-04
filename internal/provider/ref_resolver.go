@@ -56,21 +56,26 @@ func NewRefResolver(patterns []string, baseDir string) (*RefResolver, error) {
 }
 
 func (r *RefResolver) ResolveRefs(schema interface{}) (interface{}, error) {
-    return r.resolveRefsRecursive(schema, r.baseDir)
+    return r.resolveRefsRecursive(schema, schema, r.baseDir)
 }
 
 // resolveRefsRecursive recursively resolves all $ref fields in the schema.
+// rootDoc is the root document for resolving fragment-only refs.
 // currentDir is the directory path used to resolve relative refs within this schema.
-func (r *RefResolver) resolveRefsRecursive(v interface{}, currentDir string) (interface{}, error) {
+func (r *RefResolver) resolveRefsRecursive(v interface{}, rootDoc interface{}, currentDir string) (interface{}, error) {
     switch x := v.(type) {
     case map[string]interface{}:
         if ref, ok := x["$ref"].(string); ok {
-            return r.resolveRef(ref, currentDir)
+            // Handle fragment-only refs (e.g., "#/definitions/Foo")
+            if strings.HasPrefix(ref, "#") {
+                return r.resolveFragmentOnly(ref, rootDoc)
+            }
+            return r.resolveRef(ref, rootDoc, currentDir)
         }
         
         result := make(map[string]interface{})
         for k, v := range x {
-            resolved, err := r.resolveRefsRecursive(v, currentDir)
+            resolved, err := r.resolveRefsRecursive(v, rootDoc, currentDir)
             if err != nil {
                 return nil, err
             }
@@ -81,7 +86,7 @@ func (r *RefResolver) resolveRefsRecursive(v interface{}, currentDir string) (in
     case []interface{}:
         result := make([]interface{}, len(x))
         for i, v := range x {
-            resolved, err := r.resolveRefsRecursive(v, currentDir)
+            resolved, err := r.resolveRefsRecursive(v, rootDoc, currentDir)
             if err != nil {
                 return nil, err
             }
@@ -92,9 +97,39 @@ func (r *RefResolver) resolveRefsRecursive(v interface{}, currentDir string) (in
     return v, nil
 }
 
+// resolveFragmentOnly resolves a fragment-only $ref (e.g., "#/definitions/Foo") against the root document.
+func (r *RefResolver) resolveFragmentOnly(ref string, rootDoc interface{}) (interface{}, error) {
+    fragment := strings.TrimPrefix(ref, "#")
+    
+    // Normalize fragment to ensure it starts with "/" for JSON Pointer
+    fragmentNorm := fragment
+    if fragmentNorm == "" {
+        // Empty fragment means use whole document
+        return rootDoc, nil
+    }
+    if !strings.HasPrefix(fragmentNorm, "/") {
+        fragmentNorm = "/" + fragmentNorm
+    }
+    
+    pointer, err := gojsonpointer.NewJsonPointer(fragmentNorm)
+    if err != nil {
+        return nil, fmt.Errorf("invalid JSON Pointer fragment %q: %v", fragment, err)
+    }
+    
+    result, _, err := pointer.Get(rootDoc)
+    if err != nil {
+        return nil, fmt.Errorf("failed to resolve fragment-only ref %q: %v", ref, err)
+    }
+    
+    // Recursively resolve any nested refs in the result
+    // Fragment-only refs are resolved against the same root document
+    return r.resolveRefsRecursive(result, rootDoc, r.baseDir)
+}
+
 // resolveRef resolves a single $ref string.
+// rootDoc is the root document for resolving fragment-only refs in nested content.
 // currentDir is the directory path to resolve relative refs from (e.g., directory containing the current schema file).
-func (r *RefResolver) resolveRef(ref string, currentDir string) (interface{}, error) {
+func (r *RefResolver) resolveRef(ref string, rootDoc interface{}, currentDir string) (interface{}, error) {
     // Split ref into file path and fragment
     var fragment string
     refPath := ref
@@ -221,8 +256,9 @@ func (r *RefResolver) resolveRef(ref string, currentDir string) (interface{}, er
 
     // Before caching, resolve any nested refs in the loaded content
     // Use the directory of the current file as the path context
+    // Use the parsed file as the new root document for fragment-only refs within it
     currentFileDir := filepath.Dir(resolvedPath)
-    resolved, err := r.resolveRefsRecursive(fragmentResult, currentFileDir)
+    resolved, err := r.resolveRefsRecursive(fragmentResult, parsed, currentFileDir)
     if err != nil {
         return nil, fmt.Errorf("failed to resolve nested refs in %q: %v", ref, err)
     }
