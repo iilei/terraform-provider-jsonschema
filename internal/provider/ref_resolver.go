@@ -98,19 +98,29 @@ func (r *RefResolver) resolveRef(ref string, currentPath string) (interface{}, e
         fragment = ref[idx+1:]
     }
 
-    // Parse URL first to handle file:// scheme
-    u, err := url.Parse(refPath)
-    if err != nil {
-        return nil, fmt.Errorf("invalid $ref URL: %v", err)
-    }
+    // Handle Windows absolute paths before url.Parse
+    // url.Parse("C:\path\file.json") would interpret "C" as a scheme
+    var path string
+    
+    if filepath.IsAbs(refPath) || filepath.VolumeName(refPath) != "" {
+        // This is a local absolute path (including Windows drive letters)
+        path = refPath
+    } else {
+        // Parse URL for potential file:// scheme
+        u, err := url.Parse(refPath)
+        if err != nil {
+            return nil, fmt.Errorf("invalid $ref URL: %v", err)
+        }
 
-    if u.Scheme != "" && u.Scheme != "file" {
-        return nil, fmt.Errorf("only file:// and relative refs are supported")
-    }
+        if u.Scheme != "" && u.Scheme != "file" {
+            return nil, fmt.Errorf("only file:// and relative refs are supported")
+        }
 
-    path := refPath
-    if u.Scheme == "file" {
-        path = u.Path
+        if u.Scheme == "file" {
+            path = u.Path
+        } else {
+            path = refPath
+        }
     }
 
     // Resolve the absolute path of the referenced file

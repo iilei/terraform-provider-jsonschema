@@ -3,6 +3,7 @@ package provider
 import (
     "os"
     "path/filepath"
+    "runtime"
     "strings"
     "testing"
 	"github.com/google/go-cmp/cmp"
@@ -297,6 +298,145 @@ func TestRefResolver_HappyPathResolution(t *testing.T) {
 	if diff := cmp.Diff(expectedSchema, resolved); diff != "" {
 		t.Errorf("resolved schema mismatch (-want +got):\n%s", diff)
 	}
-
-
 }
+
+func TestRefResolver_WindowsAbsolutePath(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Setup file structure
+	schemaDir := filepath.Join(tmpDir, "schemas")
+	if err := os.MkdirAll(schemaDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	allowedPath := filepath.Join(schemaDir, "windows-test.json")
+
+	// Write test file
+	if err := os.WriteFile(allowedPath, []byte(`{
+		"type": "string",
+		"pattern": "^[A-Z]:"
+	}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Test that filepath.VolumeName detects Windows-style paths
+	// This tests our Windows path detection logic
+	testCases := []struct {
+		name        string
+		ref         string
+		shouldParse bool // whether url.Parse should be called
+	}{
+		{
+			name:        "Unix absolute path",
+			ref:         allowedPath,
+			shouldParse: false, // filepath.IsAbs catches this
+		},
+	}
+
+	// Add Windows-specific test case only on Windows
+	if runtime.GOOS == "windows" {
+		testCases = append(testCases, struct {
+			name        string
+			ref         string
+			shouldParse bool
+		}{
+			name:        "Windows drive letter path",
+			ref:         allowedPath, // Will be like C:\Users\...
+			shouldParse: false,       // filepath.VolumeName catches this
+		})
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			originalSchema := map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"field": map[string]interface{}{
+						"$ref": tc.ref,
+					},
+				},
+			}
+			expectedSchema := map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"field": map[string]interface{}{
+						"type":    "string",
+						"pattern": "^[A-Z]:",
+					},
+				},
+			}
+
+			patterns := []string{"./schemas/*.json"}
+			resolver, err := NewRefResolver(patterns, tmpDir)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			resolved, err := resolver.ResolveRefs(originalSchema)
+			if err != nil {
+				t.Fatalf("ResolveRefs() error = %v", err)
+			}
+
+			if diff := cmp.Diff(expectedSchema, resolved); diff != "" {
+				t.Errorf("resolved schema mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestRefResolver_WindowsPathDetection(t *testing.T) {
+	// Test that our Windows path detection logic works correctly
+	tests := []struct {
+		path          string
+		isAbsolute    bool
+		hasVolume     bool
+		shouldSkipURL bool
+	}{
+		{"/unix/absolute/path", true, false, true},
+		{"./relative/path", false, false, false},
+		{"relative/path", false, false, false},
+	}
+
+	// Add Windows-specific test cases
+	if runtime.GOOS == "windows" {
+		tests = append(tests,
+			struct {
+				path          string
+				isAbsolute    bool
+				hasVolume     bool
+				shouldSkipURL bool
+			}{"C:\\Windows\\System32", true, true, true},
+			struct {
+				path          string
+				isAbsolute    bool
+				hasVolume     bool
+				shouldSkipURL bool
+			}{"D:\\data\\file.json", true, true, true},
+			struct {
+				path          string
+				isAbsolute    bool
+				hasVolume     bool
+				shouldSkipURL bool
+			}{"C:relative", false, true, true}, // Has volume but not absolute
+		)
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.path, func(t *testing.T) {
+			isAbs := filepath.IsAbs(tt.path)
+			hasVol := filepath.VolumeName(tt.path) != ""
+			shouldSkipURL := isAbs || hasVol
+
+			if isAbs != tt.isAbsolute {
+				t.Errorf("filepath.IsAbs(%q) = %v, want %v", tt.path, isAbs, tt.isAbsolute)
+			}
+			if hasVol != tt.hasVolume {
+				t.Errorf("filepath.VolumeName(%q) != \"\" is %v, want %v", tt.path, hasVol, tt.hasVolume)
+			}
+			if shouldSkipURL != tt.shouldSkipURL {
+				t.Errorf("should skip URL parsing for %q: %v, want %v", tt.path, shouldSkipURL, tt.shouldSkipURL)
+			}
+		})
+	}
+}
+
