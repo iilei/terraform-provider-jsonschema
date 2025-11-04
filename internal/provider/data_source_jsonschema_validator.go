@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"encoding/json"
+	"os"
     "path/filepath"
     "sort"
 	"github.com/titanous/json5"
@@ -65,7 +66,7 @@ func dataSourceJsonschemaValidator() *schema.Resource {
 			"schema": {
 				Type:        schema.TypeString,
 				Required:    true,
-				Description: "json schema to validate content by",
+				Description: "json schema file path to validate content by",
 			},
 
 			"validated": {
@@ -83,12 +84,18 @@ func dataSourceJsonschemaValidatorRead(d *schema.ResourceData, m interface{}) er
     )
 
     document := d.Get("document").(string)
-    schemaJson5 := d.Get("schema").(string)
+    schemaPath := d.Get("schema").(string)
+
+    // Read schema file
+    schemaBytes, err := os.ReadFile(schemaPath)
+    if err != nil {
+        return fmt.Errorf("failed to read schema file %q: %v", schemaPath, err)
+    }
 
     // Convert JSON5 schema to regular JSON
     var schemaData interface{}
-    if err := json5.Unmarshal([]byte(schemaJson5), &schemaData); err != nil {
-        return fmt.Errorf("invalid JSON5 schema: %v", err)
+    if err := json5.Unmarshal(schemaBytes, &schemaData); err != nil {
+        return fmt.Errorf("invalid JSON5 schema in %q: %v", schemaPath, err)
     }
 
     // Get ref patterns from provider config
@@ -101,14 +108,15 @@ func dataSourceJsonschemaValidatorRead(d *schema.ResourceData, m interface{}) er
         }
     }
 
-    // Create resolver with current working directory as base path
-    workingDir, err := filepath.Abs(".")
+    // Use the schema file's directory as the base for resolving refs
+    schemaDir := filepath.Dir(schemaPath)
+    absSchemaDir, err := filepath.Abs(schemaDir)
     if err != nil {
-        return fmt.Errorf("failed to get working directory: %v", err)
+        return fmt.Errorf("failed to get absolute path for schema directory: %v", err)
     }
     
-    // workingDir is already a directory path, so we can use it directly
-    resolver, err := NewRefResolver(patterns, workingDir)
+    // Create resolver with schema directory as base path
+    resolver, err := NewRefResolver(patterns, absSchemaDir)
     if err != nil {
         return fmt.Errorf("failed to create ref resolver: %v", err)
     }
