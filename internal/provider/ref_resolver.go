@@ -7,6 +7,7 @@ import (
     "os"
     "path/filepath"
     "strings"
+    "sync"
 
     "github.com/gobwas/glob"
     "github.com/xeipuuv/gojsonpointer"
@@ -17,6 +18,7 @@ type RefResolver struct {
     loadedFiles    map[string]interface{} // Cache parsed files by absolute path
     loadedRefs     map[string]interface{} // Cache resolved refs (with fragments) by path#fragment
     baseDir        string                 // Directory to resolve relative paths from
+    mu             sync.RWMutex           // Protects loadedFiles and loadedRefs maps
 }
 
 func NewRefResolver(patterns []string, baseDir string) (*RefResolver, error) {
@@ -54,20 +56,21 @@ func NewRefResolver(patterns []string, baseDir string) (*RefResolver, error) {
 }
 
 func (r *RefResolver) ResolveRefs(schema interface{}) (interface{}, error) {
-    // Start with no file context, only baseDir for initial resolution
     return r.resolveRefsRecursive(schema, r.baseDir)
 }
 
-func (r *RefResolver) resolveRefsRecursive(v interface{}, basePath string) (interface{}, error) {
+// resolveRefsRecursive recursively resolves all $ref fields in the schema.
+// currentDir is the directory path used to resolve relative refs within this schema.
+func (r *RefResolver) resolveRefsRecursive(v interface{}, currentDir string) (interface{}, error) {
     switch x := v.(type) {
     case map[string]interface{}:
         if ref, ok := x["$ref"].(string); ok {
-            return r.resolveRef(ref, basePath)
+            return r.resolveRef(ref, currentDir)
         }
         
         result := make(map[string]interface{})
         for k, v := range x {
-            resolved, err := r.resolveRefsRecursive(v, basePath)
+            resolved, err := r.resolveRefsRecursive(v, currentDir)
             if err != nil {
                 return nil, err
             }
@@ -78,7 +81,7 @@ func (r *RefResolver) resolveRefsRecursive(v interface{}, basePath string) (inte
     case []interface{}:
         result := make([]interface{}, len(x))
         for i, v := range x {
-            resolved, err := r.resolveRefsRecursive(v, basePath)
+            resolved, err := r.resolveRefsRecursive(v, currentDir)
             if err != nil {
                 return nil, err
             }
@@ -89,7 +92,9 @@ func (r *RefResolver) resolveRefsRecursive(v interface{}, basePath string) (inte
     return v, nil
 }
 
-func (r *RefResolver) resolveRef(ref string, currentPath string) (interface{}, error) {
+// resolveRef resolves a single $ref string.
+// currentDir is the directory path to resolve relative refs from (e.g., directory containing the current schema file).
+func (r *RefResolver) resolveRef(ref string, currentDir string) (interface{}, error) {
     // Split ref into file path and fragment
     var fragment string
     refPath := ref
@@ -128,7 +133,7 @@ func (r *RefResolver) resolveRef(ref string, currentPath string) (interface{}, e
     if filepath.IsAbs(path) {
         resolvedPath = filepath.Clean(path)
     } else {
-        resolvedPath = filepath.Clean(filepath.Join(currentPath, path))
+        resolvedPath = filepath.Clean(filepath.Join(currentDir, path))
     }
 
     // Use resolved path + fragment as cache key for resolved refs
@@ -138,7 +143,10 @@ func (r *RefResolver) resolveRef(ref string, currentPath string) (interface{}, e
     }
     
     // Check if we already resolved this exact ref (with fragment)
-    if cached, ok := r.loadedRefs[cacheKey]; ok {
+    r.mu.RLock()
+    cached, ok := r.loadedRefs[cacheKey]
+    r.mu.RUnlock()
+    if ok {
         return cached, nil
     }
 
@@ -165,10 +173,11 @@ func (r *RefResolver) resolveRef(ref string, currentPath string) (interface{}, e
     }
 
     // Check if we already loaded and parsed this file
-    var parsed interface{}
-    if cached, ok := r.loadedFiles[resolvedPath]; ok {
-        parsed = cached
-    } else {
+    r.mu.RLock()
+    parsed, ok := r.loadedFiles[resolvedPath]
+    r.mu.RUnlock()
+    
+    if !ok {
         // Load and parse the file for the first time
         data, err := os.ReadFile(resolvedPath)
         if err != nil {
@@ -180,19 +189,31 @@ func (r *RefResolver) resolveRef(ref string, currentPath string) (interface{}, e
         }
 
         // Cache the parsed file content
+        r.mu.Lock()
         r.loadedFiles[resolvedPath] = parsed
+        r.mu.Unlock()
     }
 
     // Apply JSON Pointer fragment if present
     var fragmentResult interface{}
     if fragment != "" {
-        pointer, err := gojsonpointer.NewJsonPointer("/" + fragment)
-        if err != nil {
-            return nil, fmt.Errorf("invalid JSON Pointer fragment %q: %v", fragment, err)
-        }
-        fragmentResult, _, err = pointer.Get(parsed)
-        if err != nil {
-            return nil, fmt.Errorf("failed to resolve fragment %q in file %q: %v", fragment, ref, err)
+        // Normalize fragment to ensure it starts with "/" for JSON Pointer
+        fragmentNorm := fragment
+        if fragmentNorm == "" {
+            // Empty fragment means use whole document
+            fragmentResult = parsed
+        } else {
+            if !strings.HasPrefix(fragmentNorm, "/") {
+                fragmentNorm = "/" + fragmentNorm
+            }
+            pointer, err := gojsonpointer.NewJsonPointer(fragmentNorm)
+            if err != nil {
+                return nil, fmt.Errorf("invalid JSON Pointer fragment %q: %v", fragment, err)
+            }
+            fragmentResult, _, err = pointer.Get(parsed)
+            if err != nil {
+                return nil, fmt.Errorf("failed to resolve fragment %q in file %q: %v", fragment, ref, err)
+            }
         }
     } else {
         fragmentResult = parsed
@@ -207,6 +228,9 @@ func (r *RefResolver) resolveRef(ref string, currentPath string) (interface{}, e
     }
 
     // Cache the fully resolved result (with fragment applied and nested refs resolved)
+    r.mu.Lock()
     r.loadedRefs[cacheKey] = resolved
+    r.mu.Unlock()
+    
     return resolved, nil
 }

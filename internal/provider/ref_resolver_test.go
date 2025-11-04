@@ -182,6 +182,37 @@ func TestRefResolver_ResolveRefs(t *testing.T) {
                 },
             },
         },
+        {
+            name:     "fragment ref with leading slash resolves when pattern allows",
+            patterns: []string{"./schemas/*.json"}, 
+            schema: map[string]interface{}{
+                "type": "object",
+                "properties": map[string]interface{}{
+                    "stringField": map[string]interface{}{
+                        "$ref": "./schemas/definitions.json#/definitions/StringType",
+                    },
+                    "numberField": map[string]interface{}{
+                        "$ref": "./schemas/definitions.json#/definitions/NumberType",
+                    },
+                },
+            },
+            basePath: mainSchemaPath,
+            wantErr:  false,
+            wantType: "",
+            want: map[string]interface{}{
+                "type": "object",
+                "properties": map[string]interface{}{
+                    "stringField": map[string]interface{}{
+                        "type":      "string",
+                        "minLength": float64(1),
+                    },
+                    "numberField": map[string]interface{}{
+                        "type":    "number",
+                        "minimum": float64(0),
+                    },
+                },
+            },
+        },
     }
 
     for _, tt := range tests {
