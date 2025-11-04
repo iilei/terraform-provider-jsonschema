@@ -42,6 +42,23 @@ func TestRefResolver_ResolveRefs(t *testing.T) {
     if err := os.WriteFile(mainSchemaPath, []byte(`{"type": "object"}`), 0644); err != nil {
         t.Fatal(err)
     }
+    
+    // Create a file with definitions for fragment testing
+    defsPath := filepath.Join(tmpDir, "schemas", "definitions.json")
+    if err := os.WriteFile(defsPath, []byte(`{
+        "definitions": {
+            "StringType": {
+                "type": "string",
+                "minLength": 1
+            },
+            "NumberType": {
+                "type": "number",
+                "minimum": 0
+            }
+        }
+    }`), 0644); err != nil {
+        t.Fatal(err)
+    }
 
     tests := []struct {
         name          string
@@ -100,6 +117,25 @@ func TestRefResolver_ResolveRefs(t *testing.T) {
             wantType: "object",
             wantLiteral: `{"properties":{"field":{"properties":{"nested":{"properties":{"leaf":{"type":"string"}},"type":"object"}},"type":"object"}},"type":"object"}`,
         },
+        {
+            name:     "fragment ref resolves when pattern allows",
+            patterns: []string{"./schemas/*.json"}, 
+            schema: map[string]interface{}{
+                "type": "object",
+                "properties": map[string]interface{}{
+                    "stringField": map[string]interface{}{
+                        "$ref": "./schemas/definitions.json#definitions/StringType",
+                    },
+                    "numberField": map[string]interface{}{
+                        "$ref": "./schemas/definitions.json#definitions/NumberType",
+                    },
+                },
+            },
+            basePath: mainSchemaPath,
+            wantErr:  false,
+            wantType: "",
+            wantLiteral: `{"properties":{"numberField":{"minimum":0,"type":"number"},"stringField":{"minLength":1,"type":"string"}},"type":"object"}`,
+        },
     }
 
     for _, tt := range tests {
@@ -131,24 +167,26 @@ func TestRefResolver_ResolveRefs(t *testing.T) {
                 return
             }
             if !tt.wantErr {
-                // Verify the resolved schema contains the referenced content
-                props, ok := got.(map[string]interface{})["properties"]
-                if !ok {
-                    t.Errorf("resolved schema missing 'properties': %#v", got)
-                    return
-                }
-                propsMap, ok := props.(map[string]interface{})
-                if !ok {
-                    t.Errorf("'properties' is not a map: %#v", props)
-                    return
-                }
-                field, ok := propsMap["field"].(map[string]interface{})
-                if !ok {
-                    t.Errorf("'field' is not a map: %#v", propsMap["field"])
-                    return
-                }
-                if fieldType, ok := field["type"].(string); !ok || fieldType != tt.wantType {
-                    t.Errorf("resolved ref should have type=%v, got %v", tt.wantType, field["type"])
+                if tt.wantType != "" {
+                    // Verify the resolved schema contains the referenced content
+                    props, ok := got.(map[string]interface{})["properties"]
+                    if !ok {
+                        t.Errorf("resolved schema missing 'properties': %#v", got)
+                        return
+                    }
+                    propsMap, ok := props.(map[string]interface{})
+                    if !ok {
+                        t.Errorf("'properties' is not a map: %#v", props)
+                        return
+                    }
+                    field, ok := propsMap["field"].(map[string]interface{})
+                    if !ok {
+                        t.Errorf("'field' is not a map: %#v", propsMap["field"])
+                        return
+                    }
+                    if fieldType, ok := field["type"].(string); !ok || fieldType != tt.wantType {
+                        t.Errorf("resolved ref should have type=%v, got %v", tt.wantType, field["type"])
+                    }
                 }
             }
             if tt.wantLiteral != "" {

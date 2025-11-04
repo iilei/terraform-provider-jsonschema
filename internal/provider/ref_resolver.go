@@ -6,8 +6,10 @@ import (
     "io/ioutil"
     "net/url"
     "path/filepath"
+    "strings"
 
     "github.com/gobwas/glob"
+    "github.com/xeipuuv/gojsonpointer"
 )
 
 type RefResolver struct {
@@ -86,8 +88,16 @@ func (r *RefResolver) resolveRefsRecursive(v interface{}, basePath string) (inte
 }
 
 func (r *RefResolver) resolveRef(ref string, currentPath string) (interface{}, error) {
+    // Split ref into file path and fragment
+    var fragment string
+    refPath := ref
+    if idx := strings.Index(ref, "#"); idx >= 0 {
+        refPath = ref[:idx]
+        fragment = ref[idx+1:]
+    }
+
     // Parse URL first to handle file:// scheme
-    u, err := url.Parse(ref)
+    u, err := url.Parse(refPath)
     if err != nil {
         return nil, fmt.Errorf("invalid $ref URL: %v", err)
     }
@@ -96,7 +106,7 @@ func (r *RefResolver) resolveRef(ref string, currentPath string) (interface{}, e
         return nil, fmt.Errorf("only file:// and relative refs are supported")
     }
 
-    path := ref
+    path := refPath
     if u.Scheme == "file" {
         path = u.Path
     }
@@ -109,8 +119,13 @@ func (r *RefResolver) resolveRef(ref string, currentPath string) (interface{}, e
         resolvedPath = filepath.Clean(filepath.Join(currentPath, path))
     }
 
-    // Use the resolved path as cache key
-    if cached, ok := r.loadedRefs[resolvedPath]; ok {
+    // Use resolved path + fragment as cache key
+    cacheKey := resolvedPath
+    if fragment != "" {
+        cacheKey = resolvedPath + "#" + fragment
+    }
+    
+    if cached, ok := r.loadedRefs[cacheKey]; ok {
         return cached, nil
     }
 
@@ -137,7 +152,7 @@ func (r *RefResolver) resolveRef(ref string, currentPath string) (interface{}, e
     }
 
     // Load and parse referenced file using the absolute resolved path
-    data, err := ioutil.ReadFile(filepath.Clean(resolvedPath))
+    data, err := ioutil.ReadFile(resolvedPath)
     if err != nil {
         return nil, fmt.Errorf("failed to read $ref file %q: %v", ref, err)
     }
@@ -147,15 +162,30 @@ func (r *RefResolver) resolveRef(ref string, currentPath string) (interface{}, e
         return nil, fmt.Errorf("failed to parse $ref file %q: %v", ref, err)
     }
 
-    // Before caching, resolve any nested refs in the loaded file
-    // Use the directory of the current file as the path context
-    currentFileDir := filepath.Dir(resolvedPath)
-    resolved, err := r.resolveRefsRecursive(parsed, currentFileDir)
-    if err != nil {
-        return nil, fmt.Errorf("failed to resolve nested refs in %q: %v", resolvedPath, err)
+    // Apply JSON Pointer fragment if present
+    var fragmentResult interface{}
+    if fragment != "" {
+        pointer, err := gojsonpointer.NewJsonPointer("/" + fragment)
+        if err != nil {
+            return nil, fmt.Errorf("invalid JSON Pointer fragment %q: %v", fragment, err)
+        }
+        fragmentResult, _, err = pointer.Get(parsed)
+        if err != nil {
+            return nil, fmt.Errorf("failed to resolve fragment %q in file %q: %v", fragment, ref, err)
+        }
+    } else {
+        fragmentResult = parsed
     }
 
-    // Cache the resolved result
-    r.loadedRefs[resolvedPath] = resolved
+    // Before caching, resolve any nested refs in the loaded content
+    // Use the directory of the current file as the path context
+    currentFileDir := filepath.Dir(resolvedPath)
+    resolved, err := r.resolveRefsRecursive(fragmentResult, currentFileDir)
+    if err != nil {
+        return nil, fmt.Errorf("failed to resolve nested refs in %q: %v", ref, err)
+    }
+
+    // Cache the resolved result with the cache key (path + fragment)
+    r.loadedRefs[cacheKey] = resolved
     return resolved, nil
 }
