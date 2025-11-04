@@ -5,7 +5,6 @@ import (
     "path/filepath"
     "strings"
     "testing"
-    "encoding/json"
 	"github.com/google/go-cmp/cmp"
 )
 
@@ -67,8 +66,8 @@ func TestRefResolver_ResolveRefs(t *testing.T) {
         basePath      string
         wantErr       bool
         errSubstring  string
-        wantType      string // expected type after resolution
-        wantLiteral   string // expected literal value after resolution (if applicable)
+        wantType      string      // expected type after resolution
+        want          interface{} // expected structure after resolution
     }{
         {
             name:     "denied ref path returns error",
@@ -99,7 +98,24 @@ func TestRefResolver_ResolveRefs(t *testing.T) {
             basePath: mainSchemaPath,
             wantErr:  false,
             wantType: "object",
-            wantLiteral: `{"properties":{"field":{"properties":{"nested":{"properties":{"leaf":{"type":"string"}},"type":"object"}},"type":"object"}},"type":"object"}`,
+            want: map[string]interface{}{
+                "type": "object",
+                "properties": map[string]interface{}{
+                    "field": map[string]interface{}{
+                        "type": "object",
+                        "properties": map[string]interface{}{
+                            "nested": map[string]interface{}{
+                                "type": "object",
+                                "properties": map[string]interface{}{
+                                    "leaf": map[string]interface{}{
+                                        "type": "string",
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
         },
         {
             name:     "relative ref resolves when pattern allows",
@@ -115,7 +131,24 @@ func TestRefResolver_ResolveRefs(t *testing.T) {
             basePath: mainSchemaPath,
             wantErr:  false,
             wantType: "object",
-            wantLiteral: `{"properties":{"field":{"properties":{"nested":{"properties":{"leaf":{"type":"string"}},"type":"object"}},"type":"object"}},"type":"object"}`,
+            want: map[string]interface{}{
+                "type": "object",
+                "properties": map[string]interface{}{
+                    "field": map[string]interface{}{
+                        "type": "object",
+                        "properties": map[string]interface{}{
+                            "nested": map[string]interface{}{
+                                "type": "object",
+                                "properties": map[string]interface{}{
+                                    "leaf": map[string]interface{}{
+                                        "type": "string",
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
         },
         {
             name:     "fragment ref resolves when pattern allows",
@@ -134,7 +167,19 @@ func TestRefResolver_ResolveRefs(t *testing.T) {
             basePath: mainSchemaPath,
             wantErr:  false,
             wantType: "",
-            wantLiteral: `{"properties":{"numberField":{"minimum":0,"type":"number"},"stringField":{"minLength":1,"type":"string"}},"type":"object"}`,
+            want: map[string]interface{}{
+                "type": "object",
+                "properties": map[string]interface{}{
+                    "stringField": map[string]interface{}{
+                        "type":      "string",
+                        "minLength": float64(1),
+                    },
+                    "numberField": map[string]interface{}{
+                        "type":    "number",
+                        "minimum": float64(0),
+                    },
+                },
+            },
         },
     }
 
@@ -189,13 +234,9 @@ func TestRefResolver_ResolveRefs(t *testing.T) {
                     }
                 }
             }
-            if tt.wantLiteral != "" {
-                gotLiteralBytes, err := json.Marshal(got)
-                if err != nil {
-                    t.Errorf("failed to marshal resolved schema: %v", err)
-                    return
-                }
-                if diff := cmp.Diff(tt.wantLiteral, string(gotLiteralBytes)); diff != "" {
+            if tt.want != nil {
+                // Compare structures directly
+                if diff := cmp.Diff(tt.want, got); diff != "" {
                     t.Errorf("resolved schema mismatch (-want +got):\n%s", diff)
                 }
             }
