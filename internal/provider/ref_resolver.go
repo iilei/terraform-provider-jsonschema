@@ -13,12 +13,29 @@ import (
 type RefResolver struct {
     allowedPatterns []glob.Glob
     loadedRefs     map[string]interface{}
+    basePath       string
 }
 
-func NewRefResolver(patterns []string) (*RefResolver, error) {
+func NewRefResolver(patterns []string, basePath string) (*RefResolver, error) {
     globs := make([]glob.Glob, 0, len(patterns))
     for _, pattern := range patterns {
-        g, err := glob.Compile(pattern)
+        // Clean and normalize the pattern
+        cleanPattern := filepath.Clean(pattern)
+        
+        // Store whether the pattern was absolute for later use
+        isAbs := filepath.IsAbs(cleanPattern)
+        
+        // Always make the pattern relative for consistent matching
+        if isAbs && basePath != "" {
+                if rel, err := filepath.Rel(filepath.Dir(basePath), cleanPattern); err == nil {
+                cleanPattern = rel
+            }
+        }
+        
+        // Ensure all patterns start with ./ for consistent matching
+        cleanPattern = filepath.Join(".", cleanPattern)
+        
+        g, err := glob.Compile(cleanPattern)
         if err != nil {
             return nil, fmt.Errorf("invalid glob pattern %q: %v", pattern, err)
         }
@@ -27,11 +44,12 @@ func NewRefResolver(patterns []string) (*RefResolver, error) {
     return &RefResolver{
         allowedPatterns: globs,
         loadedRefs:     make(map[string]interface{}),
+        basePath:       basePath,
     }, nil
 }
 
 func (r *RefResolver) ResolveRefs(schema interface{}) (interface{}, error) {
-    return r.resolveRefsRecursive(schema, "")
+    return r.resolveRefsRecursive(schema, r.basePath)
 }
 
 func (r *RefResolver) resolveRefsRecursive(v interface{}, basePath string) (interface{}, error) {
@@ -66,49 +84,87 @@ func (r *RefResolver) resolveRefsRecursive(v interface{}, basePath string) (inte
 }
 
 func (r *RefResolver) resolveRef(ref string, basePath string) (interface{}, error) {
-    if cached, ok := r.loadedRefs[ref]; ok {
+    // Use the full reference path as cache key
+    fullPath := ref
+    if !filepath.IsAbs(ref) {
+        fullPath = filepath.Join(filepath.Dir(basePath), ref)
+    }
+    
+    if cached, ok := r.loadedRefs[fullPath]; ok {
         return cached, nil
     }
 
+    // Parse URL first to handle file:// scheme
     u, err := url.Parse(ref)
     if err != nil {
         return nil, fmt.Errorf("invalid $ref URL: %v", err)
     }
 
-    // Handle only file references for now
     if u.Scheme != "" && u.Scheme != "file" {
         return nil, fmt.Errorf("only file:// and relative refs are supported")
     }
 
-    path := u.Path
-    if !filepath.IsAbs(path) {
-        path = filepath.Join(filepath.Dir(basePath), path)
+    path := ref
+    if u.Scheme == "file" {
+        path = u.Path
     }
 
-    // Check if path is allowed
-    allowed := false
+    baseDir := "."
+    if basePath != "" {
+        baseDir = filepath.Dir(basePath)
+    }
+
+    // Resolve paths relative to the base schema
+    resolvedPath := path
+    if !filepath.IsAbs(path) {
+        // For relative refs, join with the base directory and clean the path
+        resolvedPath = filepath.Clean(filepath.Join(baseDir, path))
+    }
+
+    // For pattern matching, make the resolved path relative to initial base path
+    checkPath := resolvedPath
+    if filepath.IsAbs(resolvedPath) {
+        rel, err := filepath.Rel(filepath.Dir(r.basePath), resolvedPath)
+        if err != nil {
+            return nil, fmt.Errorf("failed to make path %q relative to initial base path %q: %v", 
+                resolvedPath, r.basePath, err)
+        }
+        checkPath = rel
+    }
+    
+    // Ensure pattern matching uses ./
+    checkPath = filepath.Join(".", checkPath)
+    
+    // Check if path is allowed using the relative path from initial base
+    var allowed bool
     for _, pattern := range r.allowedPatterns {
-        if pattern.Match(path) {
+        if pattern.Match(checkPath) {
             allowed = true
             break
         }
     }
     if !allowed {
-        return nil, fmt.Errorf("$ref path %q not allowed", path)
+        return nil, fmt.Errorf("$ref path %q not allowed (relative to base: %q)", ref, checkPath)
     }
 
-    // Load and parse referenced file
-    data, err := ioutil.ReadFile(path)
+    // Load and parse referenced file using the absolute resolved path
+    data, err := ioutil.ReadFile(filepath.Clean(resolvedPath))
     if err != nil {
-        return nil, fmt.Errorf("failed to read $ref file: %v", err)
+        return nil, fmt.Errorf("failed to read $ref file %q: %v", ref, err)
     }
 
     var parsed interface{}
     if err := json.Unmarshal(data, &parsed); err != nil {
-        return nil, fmt.Errorf("failed to parse $ref file: %v", err)
+        return nil, fmt.Errorf("failed to parse $ref file %q: %v", ref, err)
     }
 
-    // Cache the result
-    r.loadedRefs[ref] = parsed
-    return parsed, nil
+    // Before caching, resolve any nested refs in the loaded file using the resolved path as base
+    resolved, err := r.resolveRefsRecursive(parsed, resolvedPath)
+    if err != nil {
+        return nil, fmt.Errorf("failed to resolve nested refs in %q: %v", resolvedPath, err)
+    }
+
+    // Cache the resolved result
+    r.loadedRefs[fullPath] = resolved
+    return resolved, nil
 }

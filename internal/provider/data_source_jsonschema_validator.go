@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"encoding/json"
+    "path/filepath"
     "sort"
 	"github.com/titanous/json5"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -100,8 +101,13 @@ func dataSourceJsonschemaValidatorRead(d *schema.ResourceData, m interface{}) er
         }
     }
 
-    // Create resolver
-    resolver, err := NewRefResolver(patterns)
+    // Create resolver with current working directory as base path
+    workingDir, err := filepath.Abs(".")
+    if err != nil {
+        return fmt.Errorf("failed to get working directory: %v", err)
+    }
+    
+    resolver, err := NewRefResolver(patterns, workingDir)
     if err != nil {
         return fmt.Errorf("failed to create ref resolver: %v", err)
     }
