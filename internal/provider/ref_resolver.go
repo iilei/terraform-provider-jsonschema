@@ -50,7 +50,11 @@ func NewRefResolver(patterns []string, baseDir string) (*RefResolver, error) {
         // Ensure all patterns start with ./ for consistent matching
         cleanPattern = filepath.Join(".", cleanPattern)
         
-        g, err := glob.Compile(cleanPattern)
+        // Normalize to forward slashes for cross-platform glob matching
+        // Most glob libraries expect Unix-style separators
+        compilePattern := filepath.ToSlash(cleanPattern)
+        
+        g, err := glob.Compile(compilePattern)
         if err != nil {
             return nil, fmt.Errorf("invalid glob pattern %q: %v", pattern, err)
         }
@@ -208,8 +212,8 @@ func (r *RefResolver) resolveRef(ref string, rootDoc interface{}, currentDir str
             resolvedPath, r.baseDir, err)
     }
     
-    // Ensure pattern matching uses ./
-    checkPath := filepath.Join(".", rel)
+    // Ensure pattern matching uses ./ and normalize to forward slashes for cross-platform consistency
+    checkPath := filepath.ToSlash(filepath.Join(".", rel))
     
     // Check if path is allowed using the relative path from initial base
     var allowed bool
