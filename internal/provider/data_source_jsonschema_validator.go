@@ -107,6 +107,7 @@ func dataSourceJsonschemaValidatorRead(d *schema.ResourceData, m interface{}) er
         return fmt.Errorf("failed to get working directory: %v", err)
     }
     
+    // workingDir is already a directory path, so we can use it directly
     resolver, err := NewRefResolver(patterns, workingDir)
     if err != nil {
         return fmt.Errorf("failed to create ref resolver: %v", err)

@@ -55,12 +55,12 @@ func TestRefResolver_ResolveRefs(t *testing.T) {
     }{
         {
             name:     "denied ref path returns error",
-            patterns: []string{filepath.Join(tmpDir, "schemas/**/*.json")},
+            patterns: []string{"./schemas/**/*.json"},
             schema: map[string]interface{}{
                 "type": "object",
                 "properties": map[string]interface{}{
                     "field": map[string]interface{}{
-                        "$ref": deniedPath, // Remove file:// scheme
+                        "$ref": "./other/denied.json",
                     },
                 },
             },
@@ -75,7 +75,7 @@ func TestRefResolver_ResolveRefs(t *testing.T) {
                 "type": "object",
                 "properties": map[string]interface{}{
                     "field": map[string]interface{}{
-                        "$ref": allowedPathLevel1,  // Using absolute path
+                        "$ref": "./schemas/allowed1.json",
                     },
                 },
             },
@@ -86,12 +86,12 @@ func TestRefResolver_ResolveRefs(t *testing.T) {
         },
         {
             name:     "relative ref resolves when pattern allows",
-            patterns: []string{tmpDir + "/**/*.json"}, // Allow all under tmpDir
+            patterns: []string{"./schemas/*.json"}, 
             schema: map[string]interface{}{
                 "type": "object",
                 "properties": map[string]interface{}{
                     "field": map[string]interface{}{
-                        "$ref": filepath.Join(filepath.Dir(mainSchemaPath), "schemas/allowed1.json"),
+                        "$ref": "./schemas/allowed1.json",
                     },
                 },
             },
@@ -104,7 +104,7 @@ func TestRefResolver_ResolveRefs(t *testing.T) {
 
     for _, tt := range tests {
         t.Run(tt.name, func(t *testing.T) {
-            resolver, err := NewRefResolver(tt.patterns, tt.basePath)
+            resolver, err := NewRefResolver(tt.patterns, filepath.Dir(tt.basePath))
             if err != nil {
                 t.Fatalf("NewRefResolver() error = %v", err)
             }
@@ -188,7 +188,7 @@ func TestRefResolver_HappyPathResolution(t *testing.T) {
         "type": "object",
         "properties": map[string]interface{}{
             "field": map[string]interface{}{
-                "$ref": allowedPathLevel1,
+                "$ref": "./schemas/allowed.json",
             },
         },
     }
@@ -202,8 +202,12 @@ func TestRefResolver_HappyPathResolution(t *testing.T) {
         },
     }
 
-    patterns := []string{schemaDir + "/*.json"}
-    resolver, err := NewRefResolver(patterns, allowedPathLevel1)
+    // Use tmpDir as base directory and adjust pattern accordingly
+    patterns := []string{"./schemas/*.json"}  // Add ./ to match our pattern normalization
+    resolver, err := NewRefResolver(patterns, tmpDir)
+    if err != nil {
+        t.Fatal(err)
+    }
 
     resolved, err := resolver.ResolveRefs(originalSchema)
     if err != nil {

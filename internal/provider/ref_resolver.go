@@ -13,10 +13,10 @@ import (
 type RefResolver struct {
     allowedPatterns []glob.Glob
     loadedRefs     map[string]interface{}
-    basePath       string
+    baseDir        string // Directory to resolve relative paths from
 }
 
-func NewRefResolver(patterns []string, basePath string) (*RefResolver, error) {
+func NewRefResolver(patterns []string, baseDir string) (*RefResolver, error) {
     globs := make([]glob.Glob, 0, len(patterns))
     for _, pattern := range patterns {
         // Clean and normalize the pattern
@@ -26,8 +26,9 @@ func NewRefResolver(patterns []string, basePath string) (*RefResolver, error) {
         isAbs := filepath.IsAbs(cleanPattern)
         
         // Always make the pattern relative for consistent matching
-        if isAbs && basePath != "" {
-                if rel, err := filepath.Rel(filepath.Dir(basePath), cleanPattern); err == nil {
+        if isAbs && baseDir != "" {
+            // Make absolute patterns relative to baseDir
+            if rel, err := filepath.Rel(baseDir, cleanPattern); err == nil {
                 cleanPattern = rel
             }
         }
@@ -44,12 +45,13 @@ func NewRefResolver(patterns []string, basePath string) (*RefResolver, error) {
     return &RefResolver{
         allowedPatterns: globs,
         loadedRefs:     make(map[string]interface{}),
-        basePath:       basePath,
+        baseDir:        baseDir,
     }, nil
 }
 
 func (r *RefResolver) ResolveRefs(schema interface{}) (interface{}, error) {
-    return r.resolveRefsRecursive(schema, r.basePath)
+    // Start with no file context, only baseDir for initial resolution
+    return r.resolveRefsRecursive(schema, r.baseDir)
 }
 
 func (r *RefResolver) resolveRefsRecursive(v interface{}, basePath string) (interface{}, error) {
@@ -83,17 +85,7 @@ func (r *RefResolver) resolveRefsRecursive(v interface{}, basePath string) (inte
     return v, nil
 }
 
-func (r *RefResolver) resolveRef(ref string, basePath string) (interface{}, error) {
-    // Use the full reference path as cache key
-    fullPath := ref
-    if !filepath.IsAbs(ref) {
-        fullPath = filepath.Join(filepath.Dir(basePath), ref)
-    }
-    
-    if cached, ok := r.loadedRefs[fullPath]; ok {
-        return cached, nil
-    }
-
+func (r *RefResolver) resolveRef(ref string, currentPath string) (interface{}, error) {
     // Parse URL first to handle file:// scheme
     u, err := url.Parse(ref)
     if err != nil {
@@ -109,31 +101,28 @@ func (r *RefResolver) resolveRef(ref string, basePath string) (interface{}, erro
         path = u.Path
     }
 
-    baseDir := "."
-    if basePath != "" {
-        baseDir = filepath.Dir(basePath)
+    // Resolve the absolute path of the referenced file
+    var resolvedPath string
+    if filepath.IsAbs(path) {
+        resolvedPath = filepath.Clean(path)
+    } else {
+        resolvedPath = filepath.Clean(filepath.Join(currentPath, path))
     }
 
-    // Resolve paths relative to the base schema
-    resolvedPath := path
-    if !filepath.IsAbs(path) {
-        // For relative refs, join with the base directory and clean the path
-        resolvedPath = filepath.Clean(filepath.Join(baseDir, path))
+    // Use the resolved path as cache key
+    if cached, ok := r.loadedRefs[resolvedPath]; ok {
+        return cached, nil
     }
 
-    // For pattern matching, make the resolved path relative to initial base path
-    checkPath := resolvedPath
-    if filepath.IsAbs(resolvedPath) {
-        rel, err := filepath.Rel(filepath.Dir(r.basePath), resolvedPath)
-        if err != nil {
-            return nil, fmt.Errorf("failed to make path %q relative to initial base path %q: %v", 
-                resolvedPath, r.basePath, err)
-        }
-        checkPath = rel
+    // Make the path relative to baseDir for pattern matching
+    rel, err := filepath.Rel(r.baseDir, resolvedPath)
+    if err != nil {
+        return nil, fmt.Errorf("failed to make path %q relative to base directory %q: %v", 
+            resolvedPath, r.baseDir, err)
     }
     
     // Ensure pattern matching uses ./
-    checkPath = filepath.Join(".", checkPath)
+    checkPath := filepath.Join(".", rel)
     
     // Check if path is allowed using the relative path from initial base
     var allowed bool
@@ -158,13 +147,15 @@ func (r *RefResolver) resolveRef(ref string, basePath string) (interface{}, erro
         return nil, fmt.Errorf("failed to parse $ref file %q: %v", ref, err)
     }
 
-    // Before caching, resolve any nested refs in the loaded file using the resolved path as base
-    resolved, err := r.resolveRefsRecursive(parsed, resolvedPath)
+    // Before caching, resolve any nested refs in the loaded file
+    // Use the directory of the current file as the path context
+    currentFileDir := filepath.Dir(resolvedPath)
+    resolved, err := r.resolveRefsRecursive(parsed, currentFileDir)
     if err != nil {
         return nil, fmt.Errorf("failed to resolve nested refs in %q: %v", resolvedPath, err)
     }
 
     // Cache the resolved result
-    r.loadedRefs[fullPath] = resolved
+    r.loadedRefs[resolvedPath] = resolved
     return resolved, nil
 }
