@@ -22,6 +22,15 @@ type RefResolver struct {
 }
 
 func NewRefResolver(patterns []string, baseDir string) (*RefResolver, error) {
+    // Canonicalize baseDir to absolute path for consistent resolution and caching
+    if baseDir != "" {
+        absBaseDir, err := filepath.Abs(baseDir)
+        if err != nil {
+            return nil, fmt.Errorf("failed to resolve absolute path for baseDir %q: %v", baseDir, err)
+        }
+        baseDir = absBaseDir
+    }
+    
     globs := make([]glob.Glob, 0, len(patterns))
     for _, pattern := range patterns {
         // Clean and normalize the pattern
@@ -170,6 +179,13 @@ func (r *RefResolver) resolveRef(ref string, rootDoc interface{}, currentDir str
     } else {
         resolvedPath = filepath.Clean(filepath.Join(currentDir, path))
     }
+    
+    // Canonicalize to absolute path for consistent cache keys
+    absResolvedPath, err := filepath.Abs(resolvedPath)
+    if err != nil {
+        return nil, fmt.Errorf("failed to resolve absolute path for %q: %v", resolvedPath, err)
+    }
+    resolvedPath = absResolvedPath
 
     // Use resolved path + fragment as cache key for resolved refs
     cacheKey := resolvedPath

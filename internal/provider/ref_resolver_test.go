@@ -578,3 +578,109 @@ func TestRefResolver_WindowsPathDetection(t *testing.T) {
 	}
 }
 
+func TestRefResolver_CachingWithMultipleFragments(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Setup file structure
+	schemaDir := filepath.Join(tmpDir, "schemas")
+	if err := os.MkdirAll(schemaDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a definitions file with multiple definitions
+	defsPath := filepath.Join(schemaDir, "common.json")
+	if err := os.WriteFile(defsPath, []byte(`{
+		"definitions": {
+			"Email": {
+				"type": "string",
+				"format": "email"
+			},
+			"URL": {
+				"type": "string",
+				"format": "uri"
+			},
+			"Age": {
+				"type": "integer",
+				"minimum": 0,
+				"maximum": 150
+			}
+		}
+	}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Schema that references different fragments from the same file
+	schema := map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"email": map[string]interface{}{
+				"$ref": "./schemas/common.json#/definitions/Email",
+			},
+			"website": map[string]interface{}{
+				"$ref": "./schemas/common.json#/definitions/URL",
+			},
+			"age": map[string]interface{}{
+				"$ref": "./schemas/common.json#/definitions/Age",
+			},
+			// Reference the same fragment again to test cache hit
+			"alternateEmail": map[string]interface{}{
+				"$ref": "./schemas/common.json#/definitions/Email",
+			},
+		},
+	}
+
+	expectedSchema := map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"email": map[string]interface{}{
+				"type":   "string",
+				"format": "email",
+			},
+			"website": map[string]interface{}{
+				"type":   "string",
+				"format": "uri",
+			},
+			"age": map[string]interface{}{
+				"type":    "integer",
+				"minimum": float64(0),
+				"maximum": float64(150),
+			},
+			"alternateEmail": map[string]interface{}{
+				"type":   "string",
+				"format": "email",
+			},
+		},
+	}
+
+	patterns := []string{"./schemas/*.json"}
+	resolver, err := NewRefResolver(patterns, tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resolved, err := resolver.ResolveRefs(schema)
+	if err != nil {
+		t.Fatalf("ResolveRefs() error = %v", err)
+	}
+
+	if diff := cmp.Diff(expectedSchema, resolved); diff != "" {
+		t.Errorf("resolved schema mismatch (-want +got):\n%s", diff)
+	}
+
+	// Verify caching: the file should be loaded once, but multiple cache entries for different fragments
+	resolver.mu.RLock()
+	loadedFilesCount := len(resolver.loadedFiles)
+	loadedRefsCount := len(resolver.loadedRefs)
+	resolver.mu.RUnlock()
+
+	// Should have loaded exactly 1 file (common.json)
+	if loadedFilesCount != 1 {
+		t.Errorf("expected 1 loaded file, got %d", loadedFilesCount)
+	}
+
+	// Should have cached 3 distinct refs (Email, URL, Age) - the duplicate Email ref should hit cache
+	if loadedRefsCount != 3 {
+		t.Errorf("expected 3 cached refs (Email, URL, Age), got %d", loadedRefsCount)
+	}
+}
+
