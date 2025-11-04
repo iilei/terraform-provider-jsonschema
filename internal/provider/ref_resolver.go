@@ -13,12 +13,14 @@ import (
     "github.com/xeipuuv/gojsonpointer"
 )
 
+// RefResolver resolves JSON Schema $ref references with support for external files and fragments.
+// It is safe for concurrent use by multiple goroutines.
 type RefResolver struct {
     allowedPatterns []glob.Glob
     loadedFiles    map[string]interface{} // Cache parsed files by absolute path
     loadedRefs     map[string]interface{} // Cache resolved refs (with fragments) by path#fragment
     baseDir        string                 // Directory to resolve relative paths from
-    mu             sync.RWMutex           // Protects loadedFiles and loadedRefs maps
+    mu             sync.RWMutex           // Protects loadedFiles and loadedRefs maps for concurrent access
 }
 
 func NewRefResolver(patterns []string, baseDir string) (*RefResolver, error) {
