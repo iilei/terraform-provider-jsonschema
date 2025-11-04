@@ -3,8 +3,8 @@ package provider
 import (
     "encoding/json"
     "fmt"
-    "io/ioutil"
     "net/url"
+    "os"
     "path/filepath"
     "strings"
 
@@ -170,7 +170,7 @@ func (r *RefResolver) resolveRef(ref string, currentPath string) (interface{}, e
         parsed = cached
     } else {
         // Load and parse the file for the first time
-        data, err := ioutil.ReadFile(resolvedPath)
+        data, err := os.ReadFile(resolvedPath)
         if err != nil {
             return nil, fmt.Errorf("failed to read $ref file %q: %v", ref, err)
         }
