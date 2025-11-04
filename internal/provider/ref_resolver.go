@@ -14,8 +14,9 @@ import (
 
 type RefResolver struct {
     allowedPatterns []glob.Glob
-    loadedRefs     map[string]interface{}
-    baseDir        string // Directory to resolve relative paths from
+    loadedFiles    map[string]interface{} // Cache parsed files by absolute path
+    loadedRefs     map[string]interface{} // Cache resolved refs (with fragments) by path#fragment
+    baseDir        string                 // Directory to resolve relative paths from
 }
 
 func NewRefResolver(patterns []string, baseDir string) (*RefResolver, error) {
@@ -46,6 +47,7 @@ func NewRefResolver(patterns []string, baseDir string) (*RefResolver, error) {
     }
     return &RefResolver{
         allowedPatterns: globs,
+        loadedFiles:    make(map[string]interface{}),
         loadedRefs:     make(map[string]interface{}),
         baseDir:        baseDir,
     }, nil
@@ -119,12 +121,13 @@ func (r *RefResolver) resolveRef(ref string, currentPath string) (interface{}, e
         resolvedPath = filepath.Clean(filepath.Join(currentPath, path))
     }
 
-    // Use resolved path + fragment as cache key
+    // Use resolved path + fragment as cache key for resolved refs
     cacheKey := resolvedPath
     if fragment != "" {
         cacheKey = resolvedPath + "#" + fragment
     }
     
+    // Check if we already resolved this exact ref (with fragment)
     if cached, ok := r.loadedRefs[cacheKey]; ok {
         return cached, nil
     }
@@ -151,15 +154,23 @@ func (r *RefResolver) resolveRef(ref string, currentPath string) (interface{}, e
         return nil, fmt.Errorf("$ref path %q not allowed (relative to base: %q)", ref, checkPath)
     }
 
-    // Load and parse referenced file using the absolute resolved path
-    data, err := ioutil.ReadFile(resolvedPath)
-    if err != nil {
-        return nil, fmt.Errorf("failed to read $ref file %q: %v", ref, err)
-    }
-
+    // Check if we already loaded and parsed this file
     var parsed interface{}
-    if err := json.Unmarshal(data, &parsed); err != nil {
-        return nil, fmt.Errorf("failed to parse $ref file %q: %v", ref, err)
+    if cached, ok := r.loadedFiles[resolvedPath]; ok {
+        parsed = cached
+    } else {
+        // Load and parse the file for the first time
+        data, err := ioutil.ReadFile(resolvedPath)
+        if err != nil {
+            return nil, fmt.Errorf("failed to read $ref file %q: %v", ref, err)
+        }
+
+        if err := json.Unmarshal(data, &parsed); err != nil {
+            return nil, fmt.Errorf("failed to parse $ref file %q: %v", ref, err)
+        }
+
+        // Cache the parsed file content
+        r.loadedFiles[resolvedPath] = parsed
     }
 
     // Apply JSON Pointer fragment if present
@@ -185,7 +196,7 @@ func (r *RefResolver) resolveRef(ref string, currentPath string) (interface{}, e
         return nil, fmt.Errorf("failed to resolve nested refs in %q: %v", ref, err)
     }
 
-    // Cache the resolved result with the cache key (path + fragment)
+    // Cache the fully resolved result (with fragment applied and nested refs resolved)
     r.loadedRefs[cacheKey] = resolved
     return resolved, nil
 }
