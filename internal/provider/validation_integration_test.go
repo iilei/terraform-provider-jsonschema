@@ -145,8 +145,8 @@ func TestValidationErrorTemplateIntegration(t *testing.T) {
 				}
 			}`,
 			document: `{"name": "John"}`, // Missing required "age"
-			errorTemplate: "Config error: {error}",
-			expectedError: "Config error: jsonschema: '' does not validate with test://schema.json#/required: missing properties: 'age'",
+			errorTemplate: "Config error: {{.FullMessage}}",
+			expectedError: "Config error: jsonschema validation failed with 'test://schema.json#'\n- at '': missing property 'age'",
 			version: "draft-07",
 		},
 		{
@@ -158,8 +158,8 @@ func TestValidationErrorTemplateIntegration(t *testing.T) {
 				}
 			}`,
 			document: `{"port": "8080"}`, // Wrong type - string instead of integer
-			errorTemplate: "Schema: {schema} | Error: {error} | Document: {document}",
-			expectedError: "Schema: test://schema.json | Error: jsonschema: '/port' does not validate with test://schema.json#/properties/port/type: expected integer, but got string | Document: {\"port\": \"8080\"}",
+			errorTemplate: "Schema: {{.Schema}} | Error: {{.FullMessage}} | Document: {{.Document}}",
+			expectedError: "Schema: test://schema.json | Error: jsonschema validation failed with 'test://schema.json#'\n- at '/port': got string, want integer | Document: {\"port\": \"8080\"}",
 			version: "draft/2020-12",
 		},
 		{
@@ -170,8 +170,8 @@ func TestValidationErrorTemplateIntegration(t *testing.T) {
 				"minItems": 2
 			}`,
 			document: `["single"]`, // Array too short
-			errorTemplate: "Validation failed in {{.Schema}}: {{.Error}}",
-			expectedError: "Validation failed in test://schema.json: jsonschema: '' does not validate with test://schema.json#/minItems: minimum 2 items required, but found 1 items",
+			errorTemplate: "Validation failed in {{.Schema}}: {{.FullMessage}}",
+			expectedError: "Validation failed in test://schema.json: jsonschema validation failed with 'test://schema.json#'\n- at '': minItems: got 1, want 2",
 			version: "draft-07",
 		},
 		{
@@ -184,8 +184,8 @@ func TestValidationErrorTemplateIntegration(t *testing.T) {
 				}
 			}`,
 			document: `{"version": "invalid-version"}`, // Invalid version format
-			errorTemplate: "::error file={schema}::{error}",
-			expectedError: "::error file=test://schema.json::jsonschema: '/version' does not validate with test://schema.json#/properties/version/pattern: does not match pattern '^v[0-9]+\\\\.[0-9]+\\\\.[0-9]+$'",
+			errorTemplate: "::error file={{.Schema}}::{{.FullMessage}}",
+			expectedError: "::error file=test://schema.json::jsonschema validation failed with 'test://schema.json#'\n- at '/version': 'invalid-version' does not match pattern '^v[0-9]+\\\\.[0-9]+\\\\.[0-9]+$'",
 			version: "draft-06",
 		},
 		{
@@ -198,8 +198,8 @@ func TestValidationErrorTemplateIntegration(t *testing.T) {
 				}
 			}`,
 			document: `{"enabled": "yes", "timeout": -5}`, // Multiple errors
-			errorTemplate: "Configuration validation failed: {error} (check your settings)",
-			expectedError: "Configuration validation failed: jsonschema: '/enabled' does not validate with test://schema.json#/properties/enabled/type: expected boolean, but got string (check your settings)",
+			errorTemplate: "Configuration validation failed: {{.FullMessage}} (check your settings)",
+			expectedError: "Configuration validation failed: jsonschema validation failed with 'test://schema.json#'\n- at '/enabled': got string, want boolean\n- at '/timeout': minimum: got -5, want 0 (check your settings)",
 			version: "draft/2019-09",
 		},
 	}
@@ -335,8 +335,8 @@ func TestJSON5ValidationIntegration(t *testing.T) {
 				// Invalid short name
 				name: "ab", // Too short (< 3 chars)
 			}`,
-			errorTemplate: "JSON5 validation error: {error}",
-			expectedError: "JSON5 validation error: jsonschema: '/name' does not validate with test://json5-schema.json#/properties/name/minLength: length must be >= 3, but got 2",
+			errorTemplate: "JSON5 validation error: {{.FullMessage}}",
+			expectedError: "JSON5 validation error: jsonschema validation failed with 'test://json5-schema.json#'\n- at '/name': minLength: got 2, want 3",
 			expectError: true,
 		},
 	}
@@ -425,27 +425,27 @@ func TestConfigurationResolution(t *testing.T) {
 		{
 			name:                      "all provider defaults",
 			providerSchemaVersion:     "draft-07",
-			providerErrorTemplate:     "Provider: {error}",
+			providerErrorTemplate:     "Provider: {{.FullMessage}}",
 			expectedFinalVersion:      "draft-07",
-			expectedFinalErrorTemplate: "Provider: {error}",
+			expectedFinalErrorTemplate: "Provider: {{.FullMessage}}",
 		},
 		{
 			name:                      "resource overrides all",
 			providerSchemaVersion:     "draft-07",
-			providerErrorTemplate:     "Provider: {error}",
+			providerErrorTemplate:     "Provider: {{.FullMessage}}",
 			resourceSchemaVersion:     "draft-04",
-			resourceErrorTemplate:     "Resource: {error}",
+			resourceErrorTemplate:     "Resource: {{.FullMessage}}",
 			expectedFinalVersion:      "draft-04",
-			expectedFinalErrorTemplate: "Resource: {error}",
+			expectedFinalErrorTemplate: "Resource: {{.FullMessage}}",
 		},
 		{
 			name:                      "partial resource override",
 			providerSchemaVersion:     "draft-07",
-			providerErrorTemplate:     "Provider: {error}",
+			providerErrorTemplate:     "Provider: {{.FullMessage}}",
 			resourceSchemaVersion:     "draft-04",
 			// resource doesn't specify error template
 			expectedFinalVersion:      "draft-04",
-			expectedFinalErrorTemplate: "Provider: {error}",
+			expectedFinalErrorTemplate: "Provider: {{.FullMessage}}",
 		},
 	}
 

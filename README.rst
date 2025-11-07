@@ -6,27 +6,17 @@ terraform-provider-jsonschema
     :target: https://codecov.io/github/iilei/terraform-provider-jsonschema
     :alt: Coverage Status
 
-.. contents::
-    :local:
-    :depth: 2
-
-
-Abstract
-========
-
 A |terraform|_ provider for validating JSON and JSON5 documents using |json-schema|_ specifications.
 
 Features
 ========
 
-- **JSON5 Support**: Parse and validate both JSON and JSON5 format documents and schemas
-- **Multiple Schema Versions**: Support for JSON Schema Draft 4, 6, 7, 2019-09, and 2020-12
-- **Automatic Reference Resolution**: Resolves ``$ref`` URIs relative to schema file location
-- **Custom Error Templates**: Customize validation error messages with templating support
-- **Detailed Error Output**: Enhanced error reporting with structured JSON output for debugging
-- **Flexible Error Control**: Configure error detail level at provider and resource level
-- **Robust Validation**: Powered by ``santhosh-tekuri/jsonschema/v5`` for comprehensive validation
-- **Deterministic Output**: Consistent JSON marshaling for stable resource IDs
+- **JSON5 Support**: Validate JSON and JSON5 documents with JSON5 schemas
+- **Schema Versions**: Draft 4, 6, 7, 2019-09, and 2020-12 support  
+- **External References**: Resolves ``$ref`` URIs including JSON5 files
+- **Enhanced Templating**: Flexible error formatting with Go templates
+- **Individual Error Access**: Iterate over multiple validation errors
+- **Deterministic Output**: Consistent JSON for stable Terraform state
 
 Installation
 ============
@@ -57,9 +47,8 @@ Provider Configuration
 .. code-block:: terraform
 
   provider "jsonschema" {
-    schema_version = "draft/2020-12"  # Optional: JSON Schema version
-    detailed_errors = true            # Optional: Enhanced error output (default)
-    error_message_template = "Validation failed: {error}"  # Optional: Custom template
+    # Optional: Custom error template (supports Go templating)
+    error_template = "{{.FullMessage}}"
   }
 
 Basic Example
@@ -67,21 +56,14 @@ Basic Example
 
 .. code-block:: terraform
 
-  # Configure the provider
-  provider "jsonschema" {
-    schema_version = "draft/2020-12"
-  }
-
-  # Validate a JSON document
   data "jsonschema_validator" "config" {
     document = file("${path.module}/config.json")
-    schema   = "${path.module}/config.schema.json"
+    schema   = file("${path.module}/config.schema.json")
   }
 
   # Use the validated document
-  resource "helm_release" "app" {
-    name   = "my-app"
-    values = [data.jsonschema_validator.config.validated]
+  output "validated_config" {
+    value = data.jsonschema_validator.config.validated
   }
 
 JSON5 Support Example
@@ -104,151 +86,57 @@ JSON5 Support Example
     schema = "${path.module}/service.schema.json5"
   }
 
-Advanced Configuration
-=====================
+Error Templating
+================
+
+Customize error output with Go templates:
 
 .. code-block:: terraform
 
-  # Override schema version per validation
-  data "jsonschema_validator" "legacy_config" {
-    document       = file("legacy-config.json")
-    schema         = "legacy.schema.json"
-    schema_version = "draft-04"  # Override provider default
-  }
-
-  # Custom error message template per validation
-  data "jsonschema_validator" "detailed_validation" {
-    document               = file("config.json")
-    schema                 = "config.schema.json"
-    error_message_template = "Configuration error in {schema}: {error}"
-  }
-
-  # Enable detailed error output for specific validation
-  data "jsonschema_validator" "debug_validation" {
-    document        = file("complex-config.json")
-    schema          = "complex.schema.json"
-    detailed_errors = true  # Override provider default for detailed debugging
-  }
-
-  # Schema references are resolved relative to schema file location
-  # For example, if schema is at "/path/to/schemas/main.schema.json"
-  # then "$ref": "./types.json" resolves to "/path/to/schemas/types.json"
-  data "jsonschema_validator" "with_refs" {
-    document = file("document.json")
-    schema   = "${path.module}/schemas/main.schema.json"  # Contains $ref references
-  }
-
-Detailed Error Output
-====================
-
-The provider supports enhanced error reporting with structured output for better debugging and automated error handling.
-
-Basic vs Detailed Errors
-------------------------
-
-.. code-block:: terraform
-
-  # Basic error format (default)
-  data "jsonschema_validator" "basic" {
-    detailed_errors = false
-    document = jsonencode({"name": "Jo"})  # Too short
-    schema = jsonencode({
-      "type": "object",
-      "properties": {
-        "name": {"type": "string", "minLength": 3}
-      }
-    })
-  }
-  # Error: "doesn't validate with schema"
-
-  # Detailed error format 
-  data "jsonschema_validator" "detailed" {
-    detailed_errors = true
-    document = jsonencode({"name": "Jo"})  # Too short
-    schema = jsonencode({
-      "type": "object", 
-      "properties": {
-        "name": {"type": "string", "minLength": 3}
-      }
-    })
-  }
-  # Error: "jsonschema: '/name' does not validate with schema#/properties/name/minLength: length must be >= 3, but got 2"
-
-Structured Error Output
-----------------------
-
-When ``detailed_errors = true``, additional template variables become available:
-
-.. code-block:: terraform
-
+  # Default format
   provider "jsonschema" {
-    detailed_errors = true
-    error_message_template = <<-EOT
-      Validation failed: {error}
-      
-      Basic Output (JSON):
-      {basic_output}
-      
-      Detailed Output (JSON):
-      {detailed_output}
-    EOT
+    error_template = "{{.FullMessage}}"
   }
 
-Available Template Variables
----------------------------
-
-- ``{error}`` - The validation error message (simple or detailed based on ``detailed_errors``)
-- ``{schema}`` - Path to the schema file
-- ``{document}`` - The document content (truncated if long)  
-- ``{path}`` - JSON path where validation failed
-- ``{details}`` - Human-readable verbose error information (when detailed_errors = true)
-- ``{basic_output}`` - Flat list of all errors in JSON format (when detailed_errors = true)
-- ``{detailed_output}`` - Hierarchical error structure in JSON format (when detailed_errors = true)
-
-Predefined Error Templates
--------------------------
-
-The provider includes several predefined templates accessible via ``GetCommonTemplate()``:
-
-- ``simple`` - "Validation failed: {error}"
-- ``detailed`` - Multi-line format with error, schema, and path
-- ``compact`` - "[{schema}] {error} at {path}"
-- ``json`` - JSON formatted error information
-- ``verbose`` - Includes detailed human-readable error breakdown
-- ``structured_basic`` - Uses flat JSON error list
-- ``structured_full`` - Uses hierarchical JSON error structure
-
-Example with Structured Output
-------------------------------
-
-.. code-block:: terraform
-
-  # Configure provider for machine-processable errors
+  # Individual error iteration
   provider "jsonschema" {
-    detailed_errors = true
-    error_message_template = "structured_basic"  # Use predefined template
+    error_template = "{{range .Errors}}{{.Path}}: {{.Message}}{{end}}"
   }
-  
-  # This will output JSON formatted error information suitable for
-  # processing by external tools, CI/CD systems, or error aggregators
+
+  # Custom format with metadata
+  data "jsonschema_validator" "config" {
+    document = file("config.json")  
+    schema   = file("config.schema.json")
+    error_template = "Found {{.ErrorCount}} errors:\n{{range .Errors}}- {{.Path}}: {{.Message}}\n{{end}}"
+  }
+
+Template Variables
+==================
+
+Available in ``error_template``:
+
+- ``{{.FullMessage}}`` - Complete validation error message
+- ``{{.ErrorCount}}`` - Number of validation errors  
+- ``{{.Errors}}`` - Array of individual validation errors
+- ``{{.Document}}`` - The validated document
+- ``{{.Schema}}`` - The schema used for validation
+
+Each error in ``{{.Errors}}`` provides:
+
+- ``{{.Message}}`` - Error description
+- ``{{.Path}}`` - JSON path where error occurred
+- ``{{.SchemaPath}}`` - Schema path of the failing constraint
+- ``{{.Value}}`` - The invalid value
 
 Development
 ===========
 
-This repository follows structure of |terraform-provider-scaffolding|_ template
-recommended by |terraform|_ developers (see |terraform-publishing-provider|_).
-
-For publishing it uses Gitlab Actions.
-
-Environment requirements:
-
-- |go|_ 1.24+ (to build the provider plugin)
-
-Running tests:
+Requirements: |go|_ 1.25+
 
 .. code-block:: bash
 
-  TF_ACC=1 go test ./internal/provider -v -timeout 5m
+  # Run tests
+  TF_ACC=1 go test ./internal/provider -v
 
 
 .. |terraform| replace:: Terraform

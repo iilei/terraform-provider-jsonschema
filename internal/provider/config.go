@@ -25,7 +25,7 @@ type ProviderConfig struct {
 func NewProviderConfig(schemaVersion, errorTemplate string, detailedErrors bool) (*ProviderConfig, error) {
 	// Set sensible default for error template if empty
 	if errorTemplate == "" {
-		errorTemplate = "JSON Schema validation failed: {error}"
+		errorTemplate = "{{.FullMessage}}"
 	}
 	
 	config := &ProviderConfig{

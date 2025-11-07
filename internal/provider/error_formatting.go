@@ -2,117 +2,74 @@ package provider
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"text/template"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
-// ErrorContext holds data available for error message templating
-type ErrorContext struct {
-	Error          string // The original validation error message
-	Schema         string // Path to the schema file
-	Document       string // The document content (truncated if too long)
-	Path           string // JSON path where the error occurred
-	Details        string // Detailed error information (verbose format)
-	BasicOutput    string // Basic output format (flat list of errors)
-	DetailedOutput string // Detailed output format (hierarchical structure)
+// ValidationErrorDetail represents a single validation error with rich context
+type ValidationErrorDetail struct {
+	Message    string `json:"message"`    // Human-readable error message
+	Path       string `json:"path"`       // JSON path where error occurred  
+	SchemaPath string `json:"schemaPath"` // Path in the schema where validation failed
+	Value      string `json:"value"`      // The actual value that failed validation (if available)
 }
 
-// FormatValidationError formats a validation error using the provided template
-func FormatValidationError(err error, schemaPath, document, errorTemplate string, detailedErrors ...bool) error {
+// ErrorContext holds data available for error message templating
+type ErrorContext struct {
+	Schema       string                  `json:"schema"`       // Path to the schema file
+	Document     string                  `json:"document"`     // The document content (truncated if too long)
+	Errors       []ValidationErrorDetail `json:"errors"`       // Individual validation errors with details
+	ErrorCount   int                     `json:"errorCount"`   // Number of individual errors
+	FullMessage  string                  `json:"fullMessage"`  // Complete formatted error message from jsonschema
+}
+
+// FormatValidationError creates a formatted error message using the provided template
+func FormatValidationError(err error, schemaPath, document, errorTemplate string) error {
 	if err == nil {
-		return nil // Handle nil error gracefully
+		return nil
 	}
 
-	if errorTemplate == "" {
-		// No template provided, use sensible default
-		errorTemplate = "JSON Schema validation failed: {error}"
-	}
-
-	// Check if detailed errors are enabled (default to true for better user experience)
-	enableDetailedErrors := true
-	if len(detailedErrors) > 0 {
-		enableDetailedErrors = detailedErrors[0]
-	}
-
-	// Extract detailed error information
-	var errorMsg, jsonPath, details, basicOutput, detailedOutput string
+	var errors []ValidationErrorDetail
+	var fullMessage string
+	
 	if validationErr, ok := err.(*jsonschema.ValidationError); ok {
-		// Always use Error() method for error message (v6 doesn't have Message field)
-		errorMsg = validationErr.Error()
-		
-		// v6 has InstanceLocation as []string, join with "/"
-		if len(validationErr.InstanceLocation) > 0 {
-			jsonPath = "/" + strings.Join(validationErr.InstanceLocation, "/")
-		}
-		
-		// Only generate structured output if detailed errors are enabled
-		if enableDetailedErrors {
-			// Get structured detailed output
-			detailedOut := validationErr.DetailedOutput()
-			if detailedJSON, err := json.Marshal(detailedOut); err == nil {
-				detailedOutput = string(detailedJSON)
-			}
-
-			// Get basic output (flat list of errors)
-			basicOut := validationErr.BasicOutput()
-			if basicJSON, err := json.Marshal(basicOut); err == nil {
-				basicOutput = string(basicJSON)
-			}
-		}
-
-		// Use the verbose format (similar to GoString) for details
-		details = validationErr.GoString()
+		errors = extractValidationErrors(validationErr)
+		fullMessage = validationErr.Error()
 	} else {
-		// For non-validation errors, use the basic error message
-		errorMsg = err.Error()
+		// For non-validation errors, create a single error detail
+		errors = []ValidationErrorDetail{{
+			Message: err.Error(),
+			Path:    "",
+		}}
+		fullMessage = err.Error()
 	}
 
-	// Truncate document if it's too long for template context
-	truncatedDoc := document
-	if len(document) > 200 {
-		truncatedDoc = document[:200] + "..."
-	}
-
-	// Create template context
+	// Create clean template context
 	ctx := ErrorContext{
-		Error:          errorMsg,
-		Schema:         schemaPath,
-		Document:       truncatedDoc,
-		Path:           jsonPath,
-		Details:        details,
-		BasicOutput:    basicOutput,
-		DetailedOutput: detailedOutput,
+		Schema:      schemaPath,
+		Document:    truncateString(document, 500),
+		Errors:      errors,
+		ErrorCount:  len(errors),
+		FullMessage: fullMessage,
 	}
 
-	// First try simple string replacement (faster for simple cases)
-	if !strings.Contains(errorTemplate, "{{") {
-		// Simple string templates with placeholders like {error}, {schema}, etc.
-		result := errorTemplate
-		result = strings.ReplaceAll(result, "{error}", ctx.Error)
-		result = strings.ReplaceAll(result, "{schema}", ctx.Schema)
-		result = strings.ReplaceAll(result, "{document}", ctx.Document)
-		result = strings.ReplaceAll(result, "{path}", ctx.Path)
-		result = strings.ReplaceAll(result, "{details}", ctx.Details)
-		result = strings.ReplaceAll(result, "{basic_output}", ctx.BasicOutput)
-		result = strings.ReplaceAll(result, "{detailed_output}", ctx.DetailedOutput)
-		return fmt.Errorf("%s", result)
-	}
-
-	// Use Go text/template for more advanced templating
-	tmpl, err := template.New("error").Parse(errorTemplate)
+	// Execute Go template with helper functions
+	tmpl := template.New("error").Funcs(template.FuncMap{
+		"add": func(a, b int) int { return a + b },
+	})
+	
+	parsed, err := tmpl.Parse(errorTemplate)
 	if err != nil {
-		// Template parsing failed, fall back to simple format
-		return fmt.Errorf("validation failed (template error: %v): %s", err, errorMsg)
+		return fmt.Errorf("template parsing failed: %v", err)
 	}
 
 	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, ctx); err != nil {
-		// Template execution failed, fall back to simple format
-		return fmt.Errorf("validation failed (template execution error: %v): %s", err, errorMsg)
+	if err := parsed.Execute(&buf, ctx); err != nil {
+		return fmt.Errorf("template execution failed: %v", err)
 	}
 
 	return fmt.Errorf("%s", buf.String())
@@ -120,19 +77,84 @@ func FormatValidationError(err error, schemaPath, document, errorTemplate string
 
 // Common error message templates that users can reference
 var CommonErrorTemplates = map[string]string{
-	"simple":            "Validation failed: {error}",
-	"detailed":          "JSON Schema validation failed:\n  Error: {error}\n  Schema: {schema}\n  Path: {path}",
-	"compact":           "[{schema}] {error} at {path}",
-	"ci":                "::error file={schema},line=1::{error}",
-	"json":              `{"error": "{error}", "schema": "{schema}", "path": "{path}"}`,
-	"verbose":           "Validation failed: {error}\n\nDetails:\n{details}",
-	"structured_basic":  "Validation failed: {error}\n\nBasic Output:\n{basic_output}",
-	"structured_full":   "Validation failed: {error}\n\nDetailed Output:\n{detailed_output}",
-	"debug":             "Schema: {schema}\nDocument: {document}\nPath: {path}\nError: {error}\n\nVerbose Details:\n{details}",
+	"basic": "{{range .Errors}}{{.Message}}\n{{end}}",
+	"detailed": "{{.ErrorCount}} validation error(s) found:\n{{range $i, $e := .Errors}}{{printf \"%d. %s at %s\" (add $i 1) .Message .Path}}\n{{end}}",
+	"simple": "{{.FullMessage}}",
+	"with_path": "{{range .Errors}}{{.Path}}: {{.Message}}\n{{end}}",
+	"with_schema": "Schema {{.Schema}} validation failed:\n{{.FullMessage}}",
+	"verbose": "Validation Results:\nSchema: {{.Schema}}\nErrors: {{.ErrorCount}}\nFull Message: {{.FullMessage}}\n\nIndividual Errors:\n{{range $i, $e := .Errors}}Error {{add $i 1}}:\n  Path: {{.Path}}\n  Schema Path: {{.SchemaPath}}\n  Message: {{.Message}}{{if .Value}}\n  Value: {{.Value}}{{end}}\n\n{{end}}",
 }
 
 // GetCommonTemplate returns a predefined error template by name
 func GetCommonTemplate(name string) (string, bool) {
 	template, exists := CommonErrorTemplates[name]
 	return template, exists
+}
+
+// extractValidationErrors recursively extracts all validation errors from the error tree
+func extractValidationErrors(err *jsonschema.ValidationError) []ValidationErrorDetail {
+	var errors []ValidationErrorDetail
+	
+	// If there are child causes, extract them individually (they contain the specific errors)
+	if len(err.Causes) > 0 {
+		for _, child := range err.Causes {
+			errors = append(errors, extractValidationErrors(child)...)
+		}
+		// Sort errors for consistent ordering
+		sortValidationErrors(errors)
+		return errors
+	}
+	
+	// If no child causes, this is a leaf error - use it directly
+	detail := ValidationErrorDetail{
+		Message: err.Error(),
+		Path:    formatInstanceLocation(err.InstanceLocation),
+	}
+	
+	// Use schema URL if available
+	if err.SchemaURL != "" {
+		detail.SchemaPath = err.SchemaURL
+	}
+	
+	errors = append(errors, detail)
+	return errors
+}
+
+// sortValidationErrors sorts validation errors for consistent ordering
+// Primary sort: by Path (field name)
+// Secondary sort: by Message (for same field, different constraint violations)  
+func sortValidationErrors(errors []ValidationErrorDetail) {
+	sort.Slice(errors, func(i, j int) bool {
+		// First, sort by path
+		if errors[i].Path != errors[j].Path {
+			return errors[i].Path < errors[j].Path
+		}
+		// If paths are the same, sort by message
+		return errors[i].Message < errors[j].Message
+	})
+}
+
+// formatInstanceLocation formats the instance location path
+// Handles both string keys (objects) and converts any other types to strings (array indices, etc.)
+func formatInstanceLocation(location []string) string {
+	if len(location) == 0 {
+		return "/"
+	}
+	
+	// All elements in location are already strings in v6, but let's ensure proper formatting
+	var pathParts []string
+	for _, part := range location {
+		// Handle array indices and object keys uniformly
+		pathParts = append(pathParts, part)
+	}
+	
+	return "/" + strings.Join(pathParts, "/")
+}
+
+// truncateString truncates a string to the specified length with ellipsis
+func truncateString(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
 }

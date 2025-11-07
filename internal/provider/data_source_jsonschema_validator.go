@@ -37,13 +37,9 @@ func dataSourceJsonschemaValidator() *schema.Resource {
 			"error_message_template": {
 				Type:        schema.TypeString,
 				Optional:    true,
-				Description: "Template for formatting validation error messages. Available variables: {{.Error}}, {{.Schema}}, {{.Document}}, {{.Path}}, {{.Details}}, {{.BasicOutput}}, {{.DetailedOutput}}",
+				Description: "Template for formatting validation error messages. Available variables: {{.Schema}}, {{.Document}}, {{.FullMessage}}, {{.Errors}}, {{.ErrorCount}}. Use {{range .Errors}} to iterate over individual errors.",
 			},
-			"detailed_errors": {
-				Type:        schema.TypeBool,
-				Optional:    true,
-				Description: "Enable detailed error output for this validation. Overrides provider default. When enabled, provides structured JSON error details.",
-			},
+
 			"validated": {
 				Type:        schema.TypeString,
 				Computed:    true,
@@ -69,11 +65,7 @@ func dataSourceJsonschemaValidatorRead(d *schema.ResourceData, m interface{}) er
 		errorMessageTemplate = config.DefaultErrorTemplate
 	}
 
-	// Check for resource-level detailed errors setting
-	detailedErrors := config.DetailedErrors
-	if detailedErrorsVal, ok := d.GetOk("detailed_errors"); ok {
-		detailedErrors = detailedErrorsVal.(bool)
-	}
+
 
 	// Parse document (supports JSON5)
 	documentData, err := ParseJSON5String(document)
@@ -94,6 +86,11 @@ func dataSourceJsonschemaValidatorRead(d *schema.ResourceData, m interface{}) er
 
 	// Create a new compiler instance for this validation
 	compiler := jsonschema.NewCompiler()
+	
+	// Enable JSON5 support for $ref loading
+	compiler.UseLoader(jsonschema.SchemeURLLoader{
+		"file": JSON5FileLoader{},
+	})
 	
 	// Determine which schema version to use
 	effectiveSchemaVersion := config.DefaultSchemaVersion
@@ -145,7 +142,7 @@ func dataSourceJsonschemaValidatorRead(d *schema.ResourceData, m interface{}) er
 
 	// Validate the document
 	if err := compiledSchema.Validate(documentData); err != nil {
-		return FormatValidationError(err, schemaPath, document, errorMessageTemplate, detailedErrors)
+		return FormatValidationError(err, schemaPath, document, errorMessageTemplate)
 	}
 
 	// Convert document to deterministic canonical JSON

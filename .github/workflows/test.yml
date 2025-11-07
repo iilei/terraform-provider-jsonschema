@@ -26,9 +26,9 @@ jobs:
     steps:
 
     - name: Set up Go
-      uses: actions/setup-go@v4
+      uses: actions/setup-go@v6
       with:
-        go-version: '1.24'
+        go-version: '1.25.3'
       id: go
 
     - name: Check out code into the Go module directory
@@ -60,9 +60,9 @@ jobs:
     steps:
 
     - name: Set up Go
-      uses: actions/setup-go@v4
+      uses: actions/setup-go@v6
       with:
-        go-version: '1.24'
+        go-version: '1.25.3'
       id: go
 
     - name: Check out code into the Go module directory
@@ -90,3 +90,31 @@ jobs:
       uses: codecov/codecov-action@v5
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
+
+  # run example tests to ensure all examples work correctly
+  examples:
+    name: Test Examples
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+
+    - name: Set up Go
+      uses: actions/setup-go@v6
+      with:
+        go-version: '1.25.3'
+      id: go
+
+    - name: Check out code into the Go module directory
+      uses: actions/checkout@v4
+
+    - name: Get dependencies
+      run: |
+        go mod download
+
+    - name: Test all examples
+      run: |
+        for file in examples/*.go; do 
+          echo "=== Testing $file ==="
+          go run "$file" || echo "FAILED: $file"
+        done

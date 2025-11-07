@@ -62,76 +62,54 @@ func main() {
 		return
 	}
 
-	fmt.Println("\n1. Basic Error Format (detailed_errors = false):")
-	fmt.Println("------------------------------------------------")
+	fmt.Println("\n1. Full Error Message:")
+	fmt.Println("----------------------")
 	basicErr := provider.FormatValidationError(
 		validationErr,
 		"test://schema.json",
 		documentJSON,
-		"Validation failed: {error}",
-		false, // detailed_errors = false
+		"{{.FullMessage}}",
 	)
 	fmt.Println(basicErr.Error())
 
-	fmt.Println("\n2. Detailed Error Format (detailed_errors = true):")
-	fmt.Println("--------------------------------------------------")
+	fmt.Println("\n2. Individual Error Iteration:")
+	fmt.Println("------------------------------")
 	detailedErr := provider.FormatValidationError(
 		validationErr,
 		"test://schema.json",
 		documentJSON,
-		"Validation failed: {error}",
-		true, // detailed_errors = true
+		"{{range .Errors}}{{.Path}}: {{.Message}}\n{{end}}",
 	)
 	fmt.Println(detailedErr.Error())
 
-	fmt.Println("\n3. Using Structured Output Templates:")
-	fmt.Println("------------------------------------")
+	fmt.Println("\n3. Error Count and Metadata:")
+	fmt.Println("----------------------------")
 	
-	// Basic output template
-	basicOutputErr := provider.FormatValidationError(
+	countErr := provider.FormatValidationError(
 		validationErr,
 		"test://schema.json",
 		documentJSON,
-		"Validation failed with basic output:\n{basic_output}",
-		true, // detailed_errors = true to enable structured output
+		"Found {{.ErrorCount}} validation errors",
 	)
-	fmt.Printf("Basic Output:\n%s\n", basicOutputErr.Error())
+	fmt.Printf("%s\n", countErr.Error())
 
-	// Detailed output template
-	detailedOutputErr := provider.FormatValidationError(
+	fmt.Println("\n4. Detailed Error Information:")
+	fmt.Println("------------------------------")
+	detailedErr2 := provider.FormatValidationError(
 		validationErr,
 		"test://schema.json",
 		documentJSON,
-		"Validation failed with detailed output:\n{detailed_output}",
-		true, // detailed_errors = true to enable structured output
+		"{{range .Errors}}Error at {{.Path}}: {{.Message}} (schema: {{.SchemaPath}})\n{{end}}",
 	)
-	fmt.Printf("Detailed Output:\n%s\n", detailedOutputErr.Error())
+	fmt.Printf("%s\n", detailedErr2.Error())
 
-	fmt.Println("\n4. Available Template Variables:")
-	fmt.Println("-------------------------------")
+	fmt.Println("\n5. Complete Context Example:")
+	fmt.Println("----------------------------")
 	allVarsErr := provider.FormatValidationError(
 		validationErr,
 		"test://schema.json",
 		documentJSON,
-		"Schema: {schema}\nPath: {path}\nError: {error}\nDocument: {document}",
-		true,
+		"Schema: {{.Schema}}\nErrors: {{.ErrorCount}}\n{{range .Errors}}- {{.Path}}: {{.Message}}\n{{end}}",
 	)
 	fmt.Printf("%s\n", allVarsErr.Error())
-
-	fmt.Println("\n5. Common Predefined Templates:")
-	fmt.Println("------------------------------")
-	
-	templates := []string{"simple", "detailed", "compact", "json", "verbose", "structured_basic", "structured_full"}
-	for _, templateName := range templates {
-		if template, exists := provider.GetCommonTemplate(templateName); exists {
-			err := provider.FormatValidationError(
-				validationErr,
-				"test://schema.json",
-				documentJSON,
-				template,
-				true, // Enable detailed errors for structured templates
-			)
-			fmt.Printf("%s: %s\n", templateName, err.Error())
-		}
-	}
 }

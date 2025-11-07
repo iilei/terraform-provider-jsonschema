@@ -24,15 +24,10 @@ func New(version string) func() *schema.Provider {
 				"error_message_template": {
 					Type:        schema.TypeString,
 					Optional:    true,
-					Default:     "JSON Schema validation failed: {error}",
-					Description: "Default error message template for validation failures. Can be overridden per data source. Available variables: {{.Error}}, {{.Schema}}, {{.Document}}, {{.Path}}, {{.Details}}, {{.BasicOutput}}, {{.DetailedOutput}}",
+					Default:     "{{.FullMessage}}",
+					Description: "Default error message template for validation failures. Can be overridden per data source. Available variables: {{.Schema}}, {{.Document}}, {{.FullMessage}}, {{.Errors}}, {{.ErrorCount}}. Use {{range .Errors}} to iterate over individual errors.",
 				},
-				"detailed_errors": {
-					Type:        schema.TypeBool,
-					Optional:    true,
-					Default:     true,
-					Description: "Enable detailed error output with structured JSON format. When enabled, provides BasicOutput and DetailedOutput fields in error templates.",
-				},
+
 			},
 			DataSourcesMap: map[string]*schema.Resource{
 				"jsonschema_validator": dataSourceJsonschemaValidator(),
@@ -53,9 +48,8 @@ func providerConfigure(ctx context.Context, d *schema.ResourceData) (interface{}
 
 	schemaVersion := d.Get("schema_version").(string)
 	errorTemplate := d.Get("error_message_template").(string)
-	detailedErrors := d.Get("detailed_errors").(bool)
 
-	config, err := NewProviderConfig(schemaVersion, errorTemplate, detailedErrors)
+	config, err := NewProviderConfig(schemaVersion, errorTemplate, false)
 	if err != nil {
 		return nil, diag.FromErr(err)
 	}

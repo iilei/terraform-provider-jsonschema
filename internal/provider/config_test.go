@@ -89,7 +89,7 @@ func TestNewProviderConfig(t *testing.T) {
 				t.Errorf("expected empty default schema version, got %q", config.DefaultSchemaVersion)
 			}
 
-			if tt.errorTemplate == "" && config.DefaultErrorTemplate != "JSON Schema validation failed: {error}" {
+			if tt.errorTemplate == "" && config.DefaultErrorTemplate != "{{.FullMessage}}" {
 				t.Errorf("expected default error template, got %q", config.DefaultErrorTemplate)
 			}
 		})

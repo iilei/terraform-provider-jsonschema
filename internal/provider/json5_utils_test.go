@@ -1,6 +1,9 @@
 package provider
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -229,5 +232,49 @@ func TestJSON5ToJSON(t *testing.T) {
 				t.Errorf("expected non-empty result")
 			}
 		})
+	}
+}
+
+func TestJSON5FileLoader(t *testing.T) {
+	// Create a temporary JSON5 file
+	tmpDir := t.TempDir()
+	json5File := filepath.Join(tmpDir, "test.json5")
+	
+	json5Content := `{
+		// JSON5 test file with comments
+		"name": "test",
+		"items": [1, 2, 3,], // trailing comma
+		config: { // unquoted key
+			"enabled": true
+		}
+	}`
+	
+	if err := os.WriteFile(json5File, []byte(json5Content), 0644); err != nil {
+		t.Fatalf("Failed to write test file: %v", err)
+	}
+	
+	// Test loading with JSON5FileLoader
+	loader := JSON5FileLoader{}
+	fileURL := fmt.Sprintf("file://%s", json5File)
+	
+	data, err := loader.Load(fileURL)
+	if err != nil {
+		t.Fatalf("Failed to load JSON5 file: %v", err)
+	}
+	
+	// Verify the loaded data
+	dataMap, ok := data.(map[string]interface{})
+	if !ok {
+		t.Fatalf("Expected map[string]interface{}, got %T", data)
+	}
+	
+	if dataMap["name"] != "test" {
+		t.Errorf("Expected name='test', got %v", dataMap["name"])
+	}
+	
+	if configMap, ok := dataMap["config"].(map[string]interface{}); !ok {
+		t.Errorf("Expected config to be map, got %T", dataMap["config"])
+	} else if configMap["enabled"] != true {
+		t.Errorf("Expected config.enabled=true, got %v", configMap["enabled"])
 	}
 }

@@ -15,28 +15,28 @@ func TestErrorMessageTemplating(t *testing.T) {
 		expected string
 	}{
 		{
-			name:     "default template (empty string)",
-			template: "",
-			expected: "JSON Schema validation failed: required property 'name' missing",
+			name:     "simple full message",
+			template: "{{.FullMessage}}",
+			expected: "required property 'name' missing",
 		},
 		{
-			name:     "simple custom template",
-			template: "Error: {error} in {schema}",
-			expected: "Error: required property 'name' missing in test.schema.json",
+			name:     "error with schema",
+			template: "Error in {{.Schema}}: {{.FullMessage}}",
+			expected: "Error in test.schema.json: required property 'name' missing",
 		},
 		{
-			name:     "go template syntax",
-			template: "Validation failed: {{.Error}}",
-			expected: "Validation failed: required property 'name' missing",
+			name:     "error count template with individual errors",
+			template: "{{.ErrorCount}} error(s) found: {{range .Errors}}{{.Message}}{{end}}",
+			expected: "1 error(s) found: required property 'name' missing",
 		},
 		{
-			name:     "detailed template with path",
-			template: "Schema '{schema}' validation failed at '{path}': {error}",
-			expected: "Schema 'test.schema.json' validation failed at '': required property 'name' missing",
+			name:     "error with path from individual errors",
+			template: "{{range .Errors}}{{.Path}}: {{.Message}}{{end}}",
+			expected: ": required property 'name' missing",
 		},
 		{
 			name:     "ci format template",
-			template: "::error file={schema},line=1::{error}",
+			template: "::error file={{.Schema}},line=1::{{.FullMessage}}",
 			expected: "::error file=test.schema.json,line=1::required property 'name' missing",
 		},
 	}
@@ -58,13 +58,13 @@ func TestProviderConfigDefaults(t *testing.T) {
 		t.Fatalf("Failed to create provider config: %v", err)
 	}
 
-	expectedErrorTemplate := "JSON Schema validation failed: {error}"
+	expectedErrorTemplate := "{{.FullMessage}}"
 	if config.DefaultErrorTemplate != expectedErrorTemplate {
 		t.Errorf("Expected default error template: %s\nGot: %s", expectedErrorTemplate, config.DefaultErrorTemplate)
 	}
 
 	// Test that custom template is preserved
-	customTemplate := "Custom error: {error}"
+	customTemplate := "Custom error: {{.FullMessage}}"
 	config2, err := NewProviderConfig("", customTemplate, false)
 	if err != nil {
 		t.Fatalf("Failed to create provider config with custom template: %v", err)
@@ -80,21 +80,21 @@ func TestErrorFormattingEdgeCases(t *testing.T) {
 
 	// Test template with invalid Go template syntax
 	result := FormatValidationError(mockError, "schema.json", "{}", "{{.InvalidField")
-	if !strings.Contains(result.Error(), "template error") {
-		t.Error("Expected template error fallback for invalid Go template")
+	if !strings.Contains(result.Error(), "template parsing failed") {
+		t.Error("Expected template parsing error for invalid Go template")
 	}
 
 	// Test document truncation
-	longDoc := strings.Repeat("x", 250)
-	result2 := FormatValidationError(mockError, "schema.json", longDoc, "Doc: {document}")
+	longDoc := strings.Repeat("x", 600)
+	result2 := FormatValidationError(mockError, "schema.json", longDoc, "Doc: {{.Document}}")
 	if !strings.Contains(result2.Error(), "...") {
 		t.Error("Expected document to be truncated")
 	}
 
 	// Test all available variables
 	result3 := FormatValidationError(mockError, "test.schema.json", `{"test": true}`, 
-		"Error: {error}, Schema: {schema}, Path: {path}, Doc: {document}")
-	expected := `Error: validation error, Schema: test.schema.json, Path: , Doc: {"test": true}`
+		"Error: {{.FullMessage}}, Schema: {{.Schema}}, Count: {{.ErrorCount}}, Doc: {{.Document}}")
+	expected := `Error: validation error, Schema: test.schema.json, Count: 1, Doc: {"test": true}`
 	if result3.Error() != expected {
 		t.Errorf("Expected: %s\nGot: %s", expected, result3.Error())
 	}
@@ -125,39 +125,39 @@ func TestFormatValidationErrorComplexScenarios(t *testing.T) {
 			err:        &MockValidationError{message: "validation failed", path: "/name"},
 			schemaPath: "/path/to/schema.json",
 			document:   `{"name": 123}`,
-			template:   "Error: {{.Error}} | Schema: {{.Schema}}",
+			template:   "Error: {{.FullMessage}} | Schema: {{.Schema}}",
 			expectedContains: []string{"Error:", "validation failed", "Schema:", "/path/to/schema.json"},
 		},
 		{
-			name:       "Simple template with all variables",
+			name:       "Template with error count",
 			err:        &MockValidationError{message: "type error", path: "/age"},
 			schemaPath: "user.schema.json",
 			document:   `{"age": "twenty"}`,
-			template:   "Field failed: {error} in schema {schema} for document {document}",
-			expectedContains: []string{"Field failed:", "type error", "schema user.schema.json", "document"},
+			template:   "Found {{.ErrorCount}} error(s) in schema {{.Schema}}: {{range .Errors}}{{.Message}}{{end}}",
+			expectedContains: []string{"Found 1 error(s)", "user.schema.json", "type error"},
 		},
 		{
-			name:       "Template with missing variables",
+			name:       "Template with path iteration",
 			err:        &MockValidationError{message: "missing field"},
 			schemaPath: "schema.json",
 			document:   "{}",
-			template:   "Error: {error} | Unknown: {unknown_var}",
-			expectedContains: []string{"Error:", "missing field", "{unknown_var}"},
+			template:   "{{range .Errors}}Path {{.Path}}: {{.Message}}{{end}}",
+			expectedContains: []string{"Path :", "missing field"},
 		},
 		{
 			name:       "Invalid Go template syntax",
 			err:        &MockValidationError{message: "test error"},
 			schemaPath: "test.json",
 			document:   "{}",
-			template:   "{{.Error", // Missing closing braces
-			expectedContains: []string{"test error"}, // Should fall back to simple replacement
+			template:   "{{.Errors", // Missing closing braces
+			expectedContains: []string{"template parsing failed"},
 		},
 		{
 			name:       "Non-validation error",
 			err:        fmt.Errorf("generic error"),
 			schemaPath: "test.json",
 			document:   "{}",
-			template:   "Custom: {error}",
+			template:   "Custom: {{.FullMessage}}",
 			expectedContains: []string{"Custom:", "generic error"},
 		},
 	}
@@ -206,31 +206,37 @@ func TestGetCommonTemplate(t *testing.T) {
 			name:         "simple template",
 			templateName: "simple",
 			expectFound:  true,
-			expectedTemplate: "Validation failed: {error}",
+			expectedTemplate: "{{.FullMessage}}",
+		},
+		{
+			name:         "basic template",
+			templateName: "basic",
+			expectFound:  true,
+			expectedTemplate: "{{range .Errors}}{{.Message}}\n{{end}}",
 		},
 		{
 			name:         "detailed template",
 			templateName: "detailed",
 			expectFound:  true,
-			expectedTemplate: "JSON Schema validation failed:\n  Error: {error}\n  Schema: {schema}\n  Path: {path}",
+			expectedTemplate: "{{.ErrorCount}} validation error(s) found:\n{{range $i, $e := .Errors}}{{printf \"%d. %s at %s\" (add $i 1) .Message .Path}}\n{{end}}",
 		},
 		{
-			name:         "compact template",
-			templateName: "compact",
+			name:         "with_path template",
+			templateName: "with_path",
 			expectFound:  true,
-			expectedTemplate: "[{schema}] {error} at {path}",
+			expectedTemplate: "{{range .Errors}}{{.Path}}: {{.Message}}\n{{end}}",
 		},
 		{
-			name:         "ci template",
-			templateName: "ci",
+			name:         "with_schema template",
+			templateName: "with_schema",
 			expectFound:  true,
-			expectedTemplate: "::error file={schema},line=1::{error}",
+			expectedTemplate: "Schema {{.Schema}} validation failed:\n{{.FullMessage}}",
 		},
 		{
-			name:         "json template",
-			templateName: "json",
+			name:         "verbose template",
+			templateName: "verbose",
 			expectFound:  true,
-			expectedTemplate: `{"error": "{error}", "schema": "{schema}", "path": "{path}"}`,
+			expectedTemplate: "Validation Results:\nSchema: {{.Schema}}\nErrors: {{.ErrorCount}}\nFull Message: {{.FullMessage}}\n\nIndividual Errors:\n{{range $i, $e := .Errors}}Error {{add $i 1}}:\n  Path: {{.Path}}\n  Schema Path: {{.SchemaPath}}\n  Message: {{.Message}}{{if .Value}}\n  Value: {{.Value}}{{end}}\n\n{{end}}",
 		},
 		{
 			name:         "non-existent template",
@@ -261,9 +267,36 @@ func TestGetCommonTemplate(t *testing.T) {
 	}
 }
 
+func TestValidationErrorSorting(t *testing.T) {
+	// Test that validation errors are consistently ordered
+	unsortedErrors := []ValidationErrorDetail{
+		{Message: "error at /z", Path: "/z"},
+		{Message: "error at /a", Path: "/a"},  
+		{Message: "second error at /a", Path: "/a"},
+		{Message: "error at /b", Path: "/b"},
+	}
+	
+	// Sort using our function
+	sortValidationErrors(unsortedErrors)
+	
+	// Verify the order
+	expected := []ValidationErrorDetail{
+		{Message: "error at /a", Path: "/a"},
+		{Message: "second error at /a", Path: "/a"},
+		{Message: "error at /b", Path: "/b"},
+		{Message: "error at /z", Path: "/z"},
+	}
+	
+	for i, err := range unsortedErrors {
+		if err.Path != expected[i].Path || err.Message != expected[i].Message {
+			t.Errorf("Expected error %d to be %+v, got %+v", i, expected[i], err)
+		}
+	}
+}
+
 func TestCommonErrorTemplatesExist(t *testing.T) {
 	// Test that all expected common templates exist
-	expectedTemplates := []string{"simple", "detailed", "compact", "ci", "json"}
+	expectedTemplates := []string{"basic", "detailed", "simple", "with_path", "with_schema", "verbose"}
 	
 	for _, templateName := range expectedTemplates {
 		t.Run("template_"+templateName, func(t *testing.T) {

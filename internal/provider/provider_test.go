@@ -99,7 +99,7 @@ func TestProviderConfigureFunction(t *testing.T) {
 			name: "valid configuration with defaults",
 			configData: map[string]interface{}{
 				"schema_version":        "draft/2020-12",
-				"error_message_template": "JSON Schema validation failed: {error}",
+				"error_message_template": "{{range .Errors}}{{.Message}}{{end}}",
 			},
 			expectError: false,
 		},
@@ -179,7 +179,7 @@ func TestProviderConfigureFunction(t *testing.T) {
 
 			expectedErrorTemplate := tt.configData["error_message_template"].(string)
 			if expectedErrorTemplate == "" {
-				expectedErrorTemplate = "JSON Schema validation failed: {error}" // Default
+				expectedErrorTemplate = "{{.FullMessage}}" // Default
 			}
 			if config.DefaultErrorTemplate != expectedErrorTemplate {
 				t.Errorf("expected error template %q, got %q", expectedErrorTemplate, config.DefaultErrorTemplate)
@@ -217,8 +217,8 @@ func TestProviderSchemaDefinition(t *testing.T) {
 	if errorTemplateField.Type != schema.TypeString {
 		t.Errorf("expected error_message_template to be TypeString, got %v", errorTemplateField.Type)
 	}
-	if errorTemplateField.Default != "JSON Schema validation failed: {error}" {
-		t.Errorf("expected error_message_template default to be 'JSON Schema validation failed: {error}', got %v", errorTemplateField.Default)
+	if errorTemplateField.Default != "{{.FullMessage}}" {
+		t.Errorf("expected error_message_template default to be '{{.FullMessage}}', got %v", errorTemplateField.Default)
 	}
 }
 
