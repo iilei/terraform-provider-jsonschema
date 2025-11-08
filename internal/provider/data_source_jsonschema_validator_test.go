@@ -130,6 +130,94 @@ func TestProviderConfiguration(t *testing.T) {
 	})
 }
 
+// TestMultipleSchemasInSameDirectory verifies that schemas with different filenames work correctly
+// This is a breaking change from the previous implementation that hardcoded "schema.json" in the URL
+func TestMultipleSchemasInSameDirectory(t *testing.T) {
+	// Create temporary directory for test schema files
+	tempDir, err := ioutil.TempDir("", "jsonschema_test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Create multiple schema files in the same directory with different names
+	schema1File := filepath.Join(tempDir, "user.schema.json")
+	if err := ioutil.WriteFile(schema1File, []byte(userSchema), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	schema2File := filepath.Join(tempDir, "product.schema.json")
+	if err := ioutil.WriteFile(schema2File, []byte(productSchema), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	var cases = []struct {
+		name          string
+		document      string
+		schemaFile    string
+		errorExpected bool
+		expectedJSON  string
+	}{
+		{
+			name:          "validate user document",
+			document:      `{"name": "John", "email": "john@example.com"}`,
+			schemaFile:    schema1File,
+			errorExpected: false,
+			expectedJSON:  `{"email":"john@example.com","name":"John"}`,
+		},
+		{
+			name:          "validate product document",
+			document:      `{"sku": "ABC123", "price": 99.99}`,
+			schemaFile:    schema2File,
+			errorExpected: false,
+			expectedJSON:  `{"price":99.99,"sku":"ABC123"}`,
+		},
+		{
+			name:          "invalid user document against user schema",
+			document:      `{"name": "John"}`, // missing email
+			schemaFile:    schema1File,
+			errorExpected: true,
+		},
+		{
+			name:          "invalid product document against product schema",
+			document:      `{"sku": "ABC123"}`, // missing price
+			schemaFile:    schema2File,
+			errorExpected: true,
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			resource.Test(t, resource.TestCase{
+				PreCheck:          func() { testAccPreCheck(t) },
+				ProviderFactories: providerFactories,
+				Steps: []resource.TestStep{
+					{
+						Config: makeDataSourceWithFile(tt.document, tt.schemaFile),
+						Check: resource.ComposeAggregateTestCheckFunc(
+							func() resource.TestCheckFunc {
+								if tt.expectedJSON != "" {
+									return resource.TestCheckResourceAttr("data.jsonschema_validator.test", "validated", tt.expectedJSON)
+								}
+								return resource.TestCheckResourceAttrSet("data.jsonschema_validator.test", "validated")
+							}(),
+						),
+					},
+				},
+				ErrorCheck: func(err error) error {
+					if tt.errorExpected {
+						if err == nil {
+							return fmt.Errorf("error expected for case: %s", tt.name)
+						}
+						return nil
+					}
+					return err
+				},
+			})
+		})
+	}
+}
+
 func makeDataSourceWithFile(document string, schemaFile string) string {
 	return fmt.Sprintf(`
 data "jsonschema_validator" "test" {
@@ -185,6 +273,36 @@ var schemaValidDraft04 = `{
   "properties": {
     "test": {
       "type": "string"
+    }
+  }
+}`
+
+var userSchema = `{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["name", "email"],
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "email": {
+      "type": "string",
+      "format": "email"
+    }
+  }
+}`
+
+var productSchema = `{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["sku", "price"],
+  "properties": {
+    "sku": {
+      "type": "string"
+    },
+    "price": {
+      "type": "number",
+      "minimum": 0
     }
   }
 }`

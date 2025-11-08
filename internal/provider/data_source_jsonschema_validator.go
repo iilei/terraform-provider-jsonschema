@@ -118,12 +118,13 @@ func dataSourceJsonschemaValidatorRead(d *schema.ResourceData, m interface{}) er
 		return fmt.Errorf("failed to convert schema to JSON: %w", err)
 	}
 
-	// Generate schema URL based on the schema file path
-	schemaDir, err := filepath.Abs(filepath.Dir(schemaPath))
+	// Generate schema URL based on the actual schema file path
+	// This ensures unique URLs for different schemas in the same directory
+	schemaAbsPath, err := filepath.Abs(schemaPath)
 	if err != nil {
-		return fmt.Errorf("failed to get absolute path for schema directory: %w", err)
+		return fmt.Errorf("failed to get absolute path for schema: %w", err)
 	}
-	schemaURL := fmt.Sprintf("file://%s/schema.json", schemaDir)
+	schemaURL := fmt.Sprintf("file://%s", schemaAbsPath)
 
 	// Add schema resource and compile (v6 API)
 	var parsedSchemaData interface{}
