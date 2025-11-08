@@ -1,0 +1,29 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://api.example.com/schemas/product.json",
+    "title": "Product Schema",
+    "description": "Schema for product data validation",
+    "type": "object",
+    "properties": {
+        "sku": {
+            "type": "string",
+            "pattern": "^[A-Z]+-[0-9]+$",
+            "description": "Product SKU (e.g., PROD-123)"
+        },
+        "name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Product name"
+        },
+        "price": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Product price in USD"
+        }
+    },
+    "required": [
+        "sku",
+        "name",
+        "price"
+    ]
+}

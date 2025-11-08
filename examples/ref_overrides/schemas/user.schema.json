@@ -1,0 +1,29 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://api.example.com/schemas/user.json",
+    "title": "User Schema",
+    "description": "Schema for user data validation",
+    "type": "object",
+    "properties": {
+        "name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "User's full name"
+        },
+        "email": {
+            "type": "string",
+            "format": "email",
+            "description": "User's email address"
+        },
+        "age": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 150,
+            "description": "User's age in years"
+        }
+    },
+    "required": [
+        "name",
+        "email"
+    ]
+}

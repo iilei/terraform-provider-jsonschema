@@ -306,3 +306,121 @@ var productSchema = `{
     }
   }
 }`
+
+func TestRefOverrides(t *testing.T) {
+	// Create temporary directory for test schemas
+	tempDir, err := ioutil.TempDir("", "jsonschema_ref_override_test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Main schema with remote $refs
+	mainSchema := `{
+		"$schema": "https://json-schema.org/draft/2020-12/schema",
+		"type": "object",
+		"properties": {
+			"user": {
+				"$ref": "https://example.com/schemas/user.json"
+			},
+			"product": {
+				"$ref": "https://example.com/schemas/product.json"
+			}
+		},
+		"required": ["user", "product"]
+	}`
+
+	// User schema (to override remote URL)
+	userSchema := `{
+		"$schema": "https://json-schema.org/draft/2020-12/schema",
+		"type": "object",
+		"properties": {
+			"name": {
+				"type": "string"
+			},
+			"age": {
+				"type": "integer",
+				"minimum": 0
+			}
+		},
+		"required": ["name"]
+	}`
+
+	// Product schema (to override remote URL)
+	productSchema := `{
+		"$schema": "https://json-schema.org/draft/2020-12/schema",
+		"type": "object",
+		"properties": {
+			"id": {
+				"type": "string"
+			},
+			"price": {
+				"type": "number",
+				"minimum": 0
+			}
+		},
+		"required": ["id", "price"]
+	}`
+
+	// Write schema files
+	mainSchemaPath := filepath.Join(tempDir, "main.schema.json")
+	if err := ioutil.WriteFile(mainSchemaPath, []byte(mainSchema), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	userSchemaPath := filepath.Join(tempDir, "user.schema.json")
+	if err := ioutil.WriteFile(userSchemaPath, []byte(userSchema), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	productSchemaPath := filepath.Join(tempDir, "product.schema.json")
+	if err := ioutil.WriteFile(productSchemaPath, []byte(productSchema), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Test document
+	testDoc := `{
+		"user": {
+			"name": "John Doe",
+			"age": 30
+		},
+		"product": {
+			"id": "prod-123",
+			"price": 29.99
+		}
+	}`
+
+	// Create provider config
+	config := &ProviderConfig{
+		DefaultSchemaVersion: "draft/2020-12",
+		DefaultErrorTemplate: "{{.FullMessage}}",
+		DefaultDraft:         nil,
+	}
+
+	// Create resource data
+	d := dataSourceJsonschemaValidator().TestResourceData()
+	d.Set("schema", mainSchemaPath)
+	d.Set("document", testDoc)
+	d.Set("ref_overrides", map[string]interface{}{
+		"https://example.com/schemas/user.json":    userSchemaPath,
+		"https://example.com/schemas/product.json": productSchemaPath,
+	})
+
+	// Run the read function
+	err = dataSourceJsonschemaValidatorRead(d, config)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// Check that validation succeeded
+	validated := d.Get("validated").(string)
+	if validated == "" {
+		t.Fatal("Expected validated document, got empty string")
+	}
+
+	// Check that ID was set
+	if d.Id() == "" {
+		t.Fatal("Expected resource ID to be set")
+	}
+}
+

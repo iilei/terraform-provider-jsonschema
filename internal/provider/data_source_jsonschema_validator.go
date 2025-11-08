@@ -39,6 +39,12 @@ func dataSourceJsonschemaValidator() *schema.Resource {
 				Optional:    true,
 				Description: "Template for formatting validation error messages. Available variables: {{.Schema}}, {{.Document}}, {{.FullMessage}}, {{.Errors}}, {{.ErrorCount}}. Use {{range .Errors}} to iterate over individual errors.",
 			},
+			"ref_overrides": {
+				Type:        schema.TypeMap,
+				Optional:    true,
+				Elem:        &schema.Schema{Type: schema.TypeString},
+				Description: "Map of remote schema URLs to local file paths. When a $ref references a URL in this map, the local file will be used instead. This allows offline validation with schemas that reference remote resources.",
+			},
 
 			"validated": {
 				Type:        schema.TypeString,
@@ -110,6 +116,49 @@ func dataSourceJsonschemaValidatorRead(d *schema.ResourceData, m interface{}) er
 	} else {
 		// Fallback to Draft2020 if no draft is set
 		compiler.DefaultDraft(jsonschema.Draft2020)
+	}
+
+	// Pre-register ref overrides BEFORE adding the main schema.
+	// This allows redirecting remote schema URLs (e.g., https://example.com/schema.json)
+	// to local files, enabling offline validation and avoiding HTTP dependencies.
+	//
+	// The jsonschema/v6 compiler checks pre-registered resources (via AddResource)
+	// before attempting to load from URLs via the URLLoader. This means:
+	// 1. If a $ref matches a pre-registered URL, the local data is used
+	// 2. If not found, the compiler falls back to the URLLoader (file:// in our case)
+	// 3. Results are cached for subsequent references
+	//
+	// This approach supports:
+	// - Offline validation (no network access needed)
+	// - Version-controlled schemas (all files in repository)
+	// - Deterministic builds (same inputs = same results)
+	// - Air-gapped environments (no internet access required)
+	if refOverridesRaw, ok := d.GetOk("ref_overrides"); ok {
+		refOverrides := refOverridesRaw.(map[string]interface{})
+		
+		for remoteURL, localPathRaw := range refOverrides {
+			localPath := localPathRaw.(string)
+			
+			// Read and parse the override schema file (JSON5 supported)
+			overrideBytes, err := os.ReadFile(localPath)
+			if err != nil {
+				return fmt.Errorf("ref_override: failed to read local file %q for URL %q: %w", 
+					localPath, remoteURL, err)
+			}
+			
+			overrideData, err := ParseJSON5(overrideBytes)
+			if err != nil {
+				return fmt.Errorf("ref_override: failed to parse local file %q: %w", localPath, err)
+			}
+			
+			// Pre-register this schema at the remote URL.
+			// When the compiler encounters "$ref": "remoteURL" during schema compilation,
+			// it will use this pre-registered data instead of attempting to load from the URL.
+			if err := compiler.AddResource(remoteURL, overrideData); err != nil {
+				return fmt.Errorf("ref_override: failed to register %q -> %q: %w", 
+					remoteURL, localPath, err)
+			}
+		}
 	}
 
 	// Convert schema data to deterministic JSON string

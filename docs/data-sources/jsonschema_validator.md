@@ -52,6 +52,24 @@ data "jsonschema_validator" "with_refs" {
 }
 ```
 
+### Remote Schema References (ref_overrides)
+
+```hcl-terraform
+# Redirect remote schema URLs to local files for offline validation
+data "jsonschema_validator" "with_remote_refs" {
+  document = file("api-request.json")
+  schema   = "${path.module}/schemas/api-request.schema.json"
+  
+  # Map remote URLs to local files
+  # When the schema contains $ref: "https://api.example.com/schemas/user.schema.json",
+  # it will use the local file instead
+  ref_overrides = {
+    "https://api.example.com/schemas/user.schema.json"    = "${path.module}/schemas/user.schema.json"
+    "https://api.example.com/schemas/product.schema.json" = "${path.module}/schemas/product.schema.json"
+  }
+}
+```
+
 ### Custom Error Message Templates
 
 ```hcl-terraform
@@ -118,6 +136,7 @@ data "jsonschema_validator" "json_format" {
 * `schema` (Required) - Path to JSON or JSON5 schema file.
 * `schema_version` (Optional) - Schema version override (`"draft-04"` to `"draft/2020-12"`).
 * `error_message_template` (Optional) - Custom Go template for error messages. Available variables: `{{.Schema}}`, `{{.Document}}`, `{{.FullMessage}}`, `{{.Errors}}`, `{{.ErrorCount}}`.
+* `ref_overrides` (Optional) - Map of remote schema URLs to local file paths. Redirects `$ref` references from remote URLs to local files, enabling offline validation.
 
 ## Attributes Reference
 
@@ -129,6 +148,53 @@ data "jsonschema_validator" "json_format" {
 - **Schema references**: `$ref` URIs in schemas are resolved relative to the schema file's location
 - **Relative references**: For example, if your schema is at `./schemas/main.schema.json` and contains `"$ref": "./types.json"`, it resolves to `./schemas/types.json`
 - **Absolute references**: Full file paths or URLs in `$ref` are used as-is
+- **Remote references with overrides**: When `ref_overrides` is configured, `$ref` URLs matching the map keys are redirected to local files
+
+## Reference Overrides (ref_overrides)
+
+The `ref_overrides` parameter allows you to redirect remote schema URLs to local files, enabling:
+
+- **Offline validation**: No internet connection required
+- **Air-gapped environments**: Works in restricted networks  
+- **Version control**: Keep all schemas in your repository
+- **Deterministic builds**: Same inputs always produce same results
+- **Performance**: No network latency
+- **Security**: No external dependencies or credential management
+
+### How It Works
+
+When the schema compiler encounters a `$ref` to a URL:
+1. First checks if the URL exists in `ref_overrides` (uses local file if found)
+2. If not found, uses the default loader (file:// URLs)
+3. Results are cached for subsequent references
+
+This means you can mix remote refs (overridden to local) with local file:// refs in the same schema.
+
+### Example Schema with Remote References
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "user": {
+      "$ref": "https://api.example.com/schemas/user.schema.json"
+    }
+  }
+}
+```
+
+With `ref_overrides`:
+
+```hcl
+ref_overrides = {
+  "https://api.example.com/schemas/user.schema.json" = "./local/user.schema.json"
+}
+```
+
+The `$ref` will resolve to the local file instead of attempting to fetch from the remote URL.
+
+For a complete example, see `examples/ref_overrides/` in the provider repository.
 
 ## JSON5 Features Supported
 

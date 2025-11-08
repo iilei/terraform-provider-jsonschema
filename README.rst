@@ -14,6 +14,7 @@ Features
 - **JSON5 Support**: Validate JSON and JSON5 documents with JSON5 schemas
 - **Schema Versions**: Draft 4, 6, 7, 2019-09, and 2020-12 support  
 - **External References**: Resolves ``$ref`` URIs including JSON5 files
+- **Reference Overrides**: Redirect remote ``$ref`` URLs to local files for offline validation
 - **Enhanced Templating**: Flexible error formatting with Go templates
 - **Individual Error Access**: Iterate over multiple validation errors
 - **Deterministic Output**: Consistent JSON for stable Terraform state
@@ -109,6 +110,31 @@ Customize error output with Go templates:
     schema   = file("config.schema.json")
     error_message_template = "Found {{.ErrorCount}} errors:\n{{range .Errors}}- {{.Path}}: {{.Message}}\n{{end}}"
   }
+
+Remote Schema References
+========================
+
+Redirect remote schema URLs to local files for offline validation:
+
+.. code-block:: terraform
+
+  data "jsonschema_validator" "api_request" {
+    document = file("api-request.json")
+    schema   = "${path.module}/schemas/api-request.schema.json"
+    
+    # Map remote URLs to local files
+    ref_overrides = {
+      "https://api.example.com/schemas/user.json" = "${path.module}/schemas/user.schema.json"
+      "https://api.example.com/schemas/product.json" = "${path.module}/schemas/product.schema.json"
+    }
+  }
+
+This enables:
+
+- **Offline validation**: No internet connection required
+- **Air-gapped environments**: Works in restricted networks
+- **Version control**: Keep all schemas in your repository
+- **Deterministic builds**: Same inputs always produce same results
 
 Template Variables
 ==================

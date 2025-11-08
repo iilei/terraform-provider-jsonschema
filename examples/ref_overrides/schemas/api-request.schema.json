@@ -1,0 +1,19 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://api.example.com/schemas/api-request.json",
+    "title": "API Request Schema",
+    "description": "Schema for validating API requests with user and product data",
+    "type": "object",
+    "properties": {
+        "user": {
+            "$ref": "https://api.example.com/schemas/user.json"
+        },
+        "product": {
+            "$ref": "https://api.example.com/schemas/product.json"
+        }
+    },
+    "required": [
+        "user",
+        "product"
+    ]
+}
