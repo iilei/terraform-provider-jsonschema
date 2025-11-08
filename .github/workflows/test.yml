@@ -114,7 +114,21 @@ jobs:
 
     - name: Test all examples
       run: |
+        set +e  # Don't exit on error
+        failed=0
         for file in examples/*.go; do 
           echo "=== Testing $file ==="
-          go run "$file" || echo "FAILED: $file"
+          # Capture output and exit code
+          output=$(go run "$file" 2>&1)
+          exit_code=$?
+          
+          if [ $exit_code -eq 0 ]; then
+            echo "✓ PASSED: $file"
+          else
+            echo "✗ FAILED: $file (exit code: $exit_code)"
+            echo "$output"
+            failed=1
+          fi
+          echo ""
         done
+        exit $failed
