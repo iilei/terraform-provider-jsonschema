@@ -8,8 +8,18 @@ terraform-provider-jsonschema
 
 A |terraform|_ provider for validating JSON and JSON5 documents using |json-schema|_ specifications.
 
-.. note::
-   **Version 0.x Stability**: This provider is in initial development (0.x.x versions). Per `semantic versioning <https://semver.org/#spec-item-4>`_, breaking changes may occur in minor or patch releases. Pin your provider version and review changelogs before upgrading. Stability is expected at version 1.0.0.
+.. warning::
+   ⚠️ **Version 0.x Development - Breaking Changes Expected**
+   
+   This provider is in initial development (0.x.x). Per `semantic versioning <https://semver.org/#spec-item-4>`_, **breaking changes may occur in ANY release** (minor or patch) until version 1.0.0.
+   
+   **Required actions:**
+   
+   - **Always pin to a specific version** in production
+   - **Review release notes** before upgrading
+   - **Test upgrades** in non-production environments first
+   
+   Stability and standard semver guarantees begin at version 1.0.0.
 
 Features
 ========
@@ -34,7 +44,7 @@ On |terraform|_ versions 0.13+ use:
     required_providers {
       jsonschema = {
         source  = "iilei/jsonschema"
-        version = "~> 0.5.0"  # Pin to specific version
+        version = "0.5.0"  # Pin to specific version
       }
     }
   }

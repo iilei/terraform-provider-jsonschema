@@ -2,7 +2,9 @@
 
 Terraform provider for validating JSON and JSON5 documents using [JSON Schema](https://json-schema.org/) specifications.
 
-> **Note:** Version 0.x is in initial development. Breaking changes may occur between releases per [semver](https://semver.org/#spec-item-4). Pin versions in production.
+> ⚠️ **WARNING: Version 0.x Development - Breaking Changes Expected**
+>
+> This provider is in initial development (0.x.x). Breaking changes may occur in **any release** until version 1.0.0 per [semver](https://semver.org/#spec-item-4). Always pin versions and review release notes before upgrading.
 
 ## Features
 
