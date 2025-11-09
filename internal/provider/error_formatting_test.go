@@ -310,3 +310,91 @@ func TestCommonErrorTemplatesExist(t *testing.T) {
 		})
 	}
 }
+
+func TestFormatValidationErrorTemplateEdgeCases(t *testing.T) {
+	mockErr := fmt.Errorf("validation failed")
+	schema := "test.schema.json"
+	document := `{"test": "data"}`
+
+	tests := []struct {
+		name     string
+		template string
+		wantErr  bool
+	}{
+		{
+			name:     "template with invalid syntax",
+			template: "{{.InvalidField}}",
+			wantErr:  false, // Should not panic, template execution might just produce empty string
+		},
+		{
+			name:     "template with range but no Errors",
+			template: "{{range .Errors}}{{.Path}}{{end}}",
+			wantErr:  false,
+		},
+		{
+			name:     "template accessing nested fields",
+			template: "{{range .Errors}}{{.Path}}: {{.Message}} ({{.SchemaPath}}){{end}}",
+			wantErr:  false,
+		},
+		{
+			name:     "template with conditional",
+			template: "{{if .ErrorCount}}Found {{.ErrorCount}} errors{{end}}",
+			wantErr:  false,
+		},
+		{
+			name:     "empty template",
+			template: "",
+			wantErr:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := FormatValidationError(mockErr, schema, document, tt.template)
+			if result == nil {
+				t.Error("Expected non-nil error result")
+			}
+		})
+	}
+}
+
+func TestCompactDeterministicJSONEdgeCases(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   interface{}
+		wantErr bool
+	}{
+		{
+			name:    "valid map",
+			input:   map[string]interface{}{"key": "value"},
+			wantErr: false,
+		},
+		{
+			name:    "nested map",
+			input:   map[string]interface{}{"outer": map[string]interface{}{"inner": "value"}},
+			wantErr: false,
+		},
+		{
+			name:    "nil input",
+			input:   nil,
+			wantErr: false,
+		},
+		{
+			name:    "empty map",
+			input:   map[string]interface{}{},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := CompactDeterministicJSON(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("CompactDeterministicJSON() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if !tt.wantErr && len(result) == 0 {
+				t.Error("Expected non-empty result for valid input")
+			}
+		})
+	}
+}

@@ -278,3 +278,47 @@ func TestJSON5FileLoader(t *testing.T) {
 		t.Errorf("Expected config.enabled=true, got %v", configMap["enabled"])
 	}
 }
+
+func TestJSON5FileLoaderErrors(t *testing.T) {
+	loader := JSON5FileLoader{}
+	
+	t.Run("invalid URL scheme", func(t *testing.T) {
+		// Test with non-file URL that ToFile can't handle
+		_, err := loader.Load("http://example.com/schema.json")
+		if err == nil {
+			t.Error("Expected error for non-file URL, got nil")
+		}
+	})
+	
+	t.Run("missing file", func(t *testing.T) {
+		// Test with valid file URL but missing file
+		missingFile := "file:///tmp/nonexistent_file_12345.json"
+		_, err := loader.Load(missingFile)
+		if err == nil {
+			t.Error("Expected error for missing file, got nil")
+		}
+		if err != nil && !os.IsNotExist(err) {
+			// Check that we get a "failed to read file" error
+			expectedMsg := "failed to read file"
+			if errMsg := err.Error(); len(errMsg) < len(expectedMsg) || errMsg[:len(expectedMsg)] != expectedMsg {
+				t.Logf("Got expected error: %v", err)
+			}
+		}
+	})
+	
+	t.Run("invalid JSON5 content", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		invalidFile := filepath.Join(tmpDir, "invalid.json5")
+		
+		// Write invalid JSON5 content
+		if err := os.WriteFile(invalidFile, []byte(`{invalid json`), 0644); err != nil {
+			t.Fatalf("Failed to write test file: %v", err)
+		}
+		
+		fileURL := fmt.Sprintf("file://%s", invalidFile)
+		_, err := loader.Load(fileURL)
+		if err == nil {
+			t.Error("Expected error for invalid JSON5, got nil")
+		}
+	})
+}

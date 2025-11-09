@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
@@ -422,5 +423,79 @@ func TestRefOverrides(t *testing.T) {
 	if d.Id() == "" {
 		t.Fatal("Expected resource ID to be set")
 	}
+}
+
+func TestRefOverridesErrors(t *testing.T) {
+	config := &ProviderConfig{
+		DefaultSchemaVersion: "draft/2020-12",
+		DefaultErrorTemplate: "{{.FullMessage}}",
+		DefaultDraft:         nil,
+	}
+
+	t.Run("missing override file", func(t *testing.T) {
+		tempDir, err := ioutil.TempDir("", "jsonschema_ref_override_error_test")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer os.RemoveAll(tempDir)
+
+		// Create a simple schema
+		mainSchema := `{"type": "object"}`
+		mainSchemaPath := filepath.Join(tempDir, "main.schema.json")
+		if err := ioutil.WriteFile(mainSchemaPath, []byte(mainSchema), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		d := dataSourceJsonschemaValidator().TestResourceData()
+		d.Set("schema", mainSchemaPath)
+		d.Set("document", `{}`)
+		d.Set("ref_overrides", map[string]interface{}{
+			"https://example.com/schema.json": "/nonexistent/file.json",
+		})
+
+		err = dataSourceJsonschemaValidatorRead(d, config)
+		if err == nil {
+			t.Fatal("Expected error for missing override file, got nil")
+		}
+		if !strings.Contains(err.Error(), "ref_override") {
+			t.Errorf("Expected error message to contain 'ref_override', got: %v", err)
+		}
+	})
+
+	t.Run("invalid JSON in override file", func(t *testing.T) {
+		tempDir, err := ioutil.TempDir("", "jsonschema_ref_override_error_test")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer os.RemoveAll(tempDir)
+
+		// Create a simple schema
+		mainSchema := `{"type": "object"}`
+		mainSchemaPath := filepath.Join(tempDir, "main.schema.json")
+		if err := ioutil.WriteFile(mainSchemaPath, []byte(mainSchema), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		// Create invalid override file
+		invalidOverride := filepath.Join(tempDir, "invalid.json")
+		if err := ioutil.WriteFile(invalidOverride, []byte(`{invalid json`), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		d := dataSourceJsonschemaValidator().TestResourceData()
+		d.Set("schema", mainSchemaPath)
+		d.Set("document", `{}`)
+		d.Set("ref_overrides", map[string]interface{}{
+			"https://example.com/schema.json": invalidOverride,
+		})
+
+		err = dataSourceJsonschemaValidatorRead(d, config)
+		if err == nil {
+			t.Fatal("Expected error for invalid JSON in override file, got nil")
+		}
+		if !strings.Contains(err.Error(), "ref_override") && !strings.Contains(err.Error(), "parse") {
+			t.Errorf("Expected error message about parsing, got: %v", err)
+		}
+	})
 }
 
