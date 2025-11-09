@@ -1,7 +1,9 @@
 terraform {
   required_providers {
     jsonschema = {
-      source = "iilei/jsonschema"
+      source  = "iilei/jsonschema"
+      version = "0.0.0-dev" // replace this with actual latest version
+
     }
   }
 }
@@ -39,26 +41,3 @@ data "jsonschema_validator" "api_request" {
   }
 }
 
-# Output the validated document
-output "validated_request" {
-  value       = jsondecode(data.jsonschema_validator.api_request.validated)
-  description = "The validated API request in canonical JSON format"
-}
-
-# Example showing validation failure
-# Uncomment to test error handling
-# data "jsonschema_validator" "invalid_request" {
-#   schema = "${path.module}/schemas/api-request.schema.json"
-#   
-#   document = jsonencode({
-#     user = {
-#       email = "not-an-email"  # Invalid email format
-#     }
-#     # Missing required 'product' field
-#   })
-#   
-#   ref_overrides = {
-#     "https://api.example.com/schemas/user.json"    = "${path.module}/schemas/user.schema.json"
-#     "https://api.example.com/schemas/product.json" = "${path.module}/schemas/product.schema.json"
-#   }
-# }

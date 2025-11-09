@@ -2,6 +2,7 @@ package provider
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -37,7 +38,16 @@ func FormatValidationError(err error, schemaPath, document, errorTemplate string
 	var fullMessage string
 	
 	if validationErr, ok := err.(*jsonschema.ValidationError); ok {
-		errors = extractValidationErrors(validationErr)
+		// Parse the document to extract actual values for errors
+		var documentData interface{}
+		if parseErr := json.Unmarshal([]byte(document), &documentData); parseErr != nil {
+			// If we can't parse, try JSON5
+			if data, err := ParseJSON5String(document); err == nil {
+				documentData = data
+			}
+		}
+		
+		errors = extractValidationErrors(validationErr, documentData)
 		// Generate full message using sorted errors for consistency
 		fullMessage = generateSortedFullMessage(validationErr, errors)
 	} else {
@@ -139,13 +149,13 @@ func extractCleanMessage(message, path string) string {
 }
 
 // extractValidationErrors recursively extracts all validation errors from the error tree
-func extractValidationErrors(err *jsonschema.ValidationError) []ValidationErrorDetail {
+func extractValidationErrors(err *jsonschema.ValidationError, documentData interface{}) []ValidationErrorDetail {
 	var errors []ValidationErrorDetail
 	
 	// If there are child causes, extract them individually (they contain the specific errors)
 	if len(err.Causes) > 0 {
 		for _, child := range err.Causes {
-			errors = append(errors, extractValidationErrors(child)...)
+			errors = append(errors, extractValidationErrors(child, documentData)...)
 		}
 		// Sort errors for consistent ordering
 		sortValidationErrors(errors)
@@ -154,17 +164,59 @@ func extractValidationErrors(err *jsonschema.ValidationError) []ValidationErrorD
 	
 	// If no child causes, this is a leaf error - use it directly
 	detail := ValidationErrorDetail{
-		Message: err.Error(),
-		Path:    formatInstanceLocation(err.InstanceLocation),
-	}
-	
-	// Use schema URL if available
-	if err.SchemaURL != "" {
-		detail.SchemaPath = err.SchemaURL
+		Message:    err.Error(),
+		Path:       formatInstanceLocation(err.InstanceLocation),
+		SchemaPath: err.SchemaURL,
+		Value:      extractValueAtPath(documentData, err.InstanceLocation),
 	}
 	
 	errors = append(errors, detail)
 	return errors
+}
+
+// extractValueAtPath retrieves the value at the given JSON path from the document
+func extractValueAtPath(data interface{}, path []string) string {
+	if data == nil || len(path) == 0 {
+		// For root-level errors, try to show the whole document (truncated)
+		if jsonBytes, err := json.Marshal(data); err == nil {
+			valueStr := string(jsonBytes)
+			if len(valueStr) > 100 {
+				return valueStr[:100] + "..."
+			}
+			return valueStr
+		}
+		return ""
+	}
+	
+	// Navigate to the value at the path
+	current := data
+	for _, key := range path {
+		switch v := current.(type) {
+		case map[string]interface{}:
+			var ok bool
+			current, ok = v[key]
+			if !ok {
+				return "" // Path doesn't exist (e.g., missing required field)
+			}
+		case []interface{}:
+			// Try to parse key as array index
+			var idx int
+			if _, err := fmt.Sscanf(key, "%d", &idx); err == nil && idx >= 0 && idx < len(v) {
+				current = v[idx]
+			} else {
+				return ""
+			}
+		default:
+			return "" // Can't navigate further
+		}
+	}
+	
+	// Serialize the value to JSON
+	if jsonBytes, err := json.Marshal(current); err == nil {
+		return string(jsonBytes)
+	}
+	
+	return ""
 }
 
 // sortValidationErrors sorts validation errors for consistent ordering

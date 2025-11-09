@@ -228,6 +228,20 @@ Each error in `{{.Errors}}` contains:
 - `{{.SchemaPath}}` - Schema path of the failing constraint
 - `{{.Value}}` - The actual value that failed validation (if available)
 
+**Quick Reference:**
+
+```hcl
+# Access all error attributes
+{{range .Errors}}
+  {{.Message}}      # "at '/email': got number, want string"
+  {{.Path}}         # "/email"
+  {{.SchemaPath}}   # "schema.json#/properties/email"
+  {{.Value}}        # 12345
+{{end}}
+```
+
+**See also:** Complete working example in `examples/error_attributes/` showing all attributes with realistic validation errors.
+
 ### Template Examples
 
 ```hcl-terraform

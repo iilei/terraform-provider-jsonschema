@@ -3,3 +3,5 @@
 /terraform-provider-jsonschema
 /dist/
 coverage.*
+examples/*/.terraform
+examples/**/.terraform
