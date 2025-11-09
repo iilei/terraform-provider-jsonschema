@@ -61,6 +61,6 @@ func GetDraftForVersion(version string) (*jsonschema.Draft, error) {
 	case "draft/2020-12", "https://json-schema.org/draft/2020-12/schema":
 		return jsonschema.Draft2020, nil
 	default:
-		return jsonschema.Draft2020, fmt.Errorf("unsupported JSON Schema version: %s", version)
+		return nil, fmt.Errorf("unsupported JSON Schema version: %s", version)
 	}
 }
