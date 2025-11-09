@@ -21,7 +21,7 @@ Features
 - **Enhanced Error Templating**: Flexible error formatting with Go templates
 - **Deterministic Output**: Consistent JSON for stable Terraform state
 
-See the `full documentation <docs/index.md>`_ for detailed usage, advanced features, and examples.
+See the `full documentation <docs/index.md>`_ for detailed usage, advanced features, and examples. **Hands-on examples** demonstrating schema traversal, error templating, and reference overrides are available in the `examples/ <examples/>`_ directory.
 
 Installation
 ============
@@ -34,7 +34,7 @@ On |terraform|_ versions 0.13+ use:
     required_providers {
       jsonschema = {
         source  = "iilei/jsonschema"
-        version = "~> 0.4.1"
+        version = "~> 0.5.0"  # Pin to specific version
       }
     }
   }

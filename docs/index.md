@@ -165,6 +165,28 @@ data "jsonschema_validator" "legacy_validation" {
 
 Customize validation error messages using Go templates:
 
+### Available Template Variables
+
+| Variable | Type | Scope | Description | Example Value |
+|----------|------|-------|-------------|---------------|
+| `{{.SchemaFile}}` | string | Global | Path to the schema file (as specified) | `"config.schema.json"` |
+| `{{.Document}}` | string | Global | The JSON/JSON5 document being validated | `"{\"name\": \"test\"}"` |
+| `{{.FullMessage}}` | string | Global | Complete formatted error message | `"Validation failed: at '/port': ..."` |
+| `{{.ErrorCount}}` | int | Global | Total number of validation errors | `3` |
+| `{{.Errors}}` | []Error | Global | Array of individual validation errors | Use with `{{range .Errors}}` |
+| `{{.DocumentPath}}` | string | Per-error | JSON Pointer to error location in document | `"/port"` or `""` (root) |
+| `{{.SchemaPath}}` | string | Per-error | Full URI + JSON Pointer to schema constraint | `"file:///path/schema.json#/properties/port/type"` |
+| `{{.Message}}` | string | Per-error | Human-readable error description | `"expected integer, but got string"` |
+| `{{.Value}}` | string | Per-error | JSON representation of the invalid value | `"\"8080\""` or `"null"` |
+
+**Scope Notes:**
+- **Global** variables are available at the top level of the template
+- **Per-error** variables are only available inside `{{range .Errors}}...{{end}}` blocks
+- `{{.DocumentPath}}` returns `""` (empty string) for root-level errors per RFC 6901
+- `{{.SchemaPath}}` always contains the resolved `file://` URI, not `$id` values
+
+### Template Examples
+
 ```hcl-terraform
 # Default full message
 data "jsonschema_validator" "config" {

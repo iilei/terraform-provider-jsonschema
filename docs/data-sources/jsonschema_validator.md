@@ -2,7 +2,7 @@
 
 The `jsonschema_validator` data source validates JSON or JSON5 documents using [JSON Schema](https://json-schema.org/) specifications with enhanced error templating capabilities.
 
-## ⚠️ Breaking Changes in Error Template Variables
+## ⚠️ Breaking Changes in Error Template Variables (v0.5.0)
 
 **Template variable names have been clarified for better understanding:**
 
@@ -12,10 +12,48 @@ The `jsonschema_validator` data source validates JSON or JSON5 documents using [
 | `{{.Path}}` | `{{.DocumentPath}}` | JSON Pointer to location in document |
 | `{{.SchemaPath}}` | `{{.SchemaPath}}` | *(unchanged)* JSON Pointer to schema constraint |
 
-**Migration:**
-- Replace `{{.Schema}}` with `{{.SchemaFile}}` in all instances of `error_message_template`
-- Replace `{{.Path}}` with `{{.DocumentPath}}` in all instances of `error_message_template`
-- No changes needed for `{{.SchemaPath}}`, `{{.Message}}`, `{{.Value}}`, etc.
+### Scope of Changes
+
+These variable renames **only affect** custom `error_message_template` configurations. If you're using the default error formatting or haven't customized templates, no action is needed.
+
+### Migration Guide
+
+Update all instances of `error_message_template` (in provider configuration or data source attributes):
+
+**Before (v0.4.x):**
+```hcl
+data "jsonschema_validator" "example" {
+  document = file("config.json")
+  schema   = "config.schema.json"
+  
+  error_message_template = <<-EOT
+    Schema: {{.Schema}}
+    Location: {{.Path}}
+    Schema Constraint: {{.SchemaPath}}
+    Error: {{.Message}}
+  EOT
+}
+```
+
+**After (v0.5.0+):**
+```hcl
+data "jsonschema_validator" "example" {
+  document = file("config.json")
+  schema   = "config.schema.json"
+  
+  error_message_template = <<-EOT
+    Schema: {{.SchemaFile}}
+    Location: {{.DocumentPath}}
+    Schema Constraint: {{.SchemaPath}}
+    Error: {{.Message}}
+  EOT
+}
+```
+
+**Summary:**
+- Replace `{{.Schema}}` → `{{.SchemaFile}}`
+- Replace `{{.Path}}` → `{{.DocumentPath}}`
+- All other variables (`{{.SchemaPath}}`, `{{.Message}}`, `{{.Value}}`, `{{.ErrorCount}}`, etc.) remain unchanged
 
 ## Example Usage
 
@@ -240,8 +278,19 @@ Each error in `{{.Errors}}` contains:
 
 - `{{.Message}}` - Human-readable error message
 - `{{.DocumentPath}}` - JSON Pointer ([RFC 6901](https://datatracker.ietf.org/doc/html/rfc6901)) to the error location in the document (e.g., `/user/email`, `/items/0`)
-- `{{.SchemaPath}}` - JSON Pointer to the failing constraint in the schema (e.g., `schema.json#/properties/email/type`)
+- `{{.SchemaPath}}` - Full URI with JSON Pointer fragment to the failing constraint (e.g., `file:///path/to/schema.json#/properties/email/type`)
 - `{{.Value}}` - The actual value that failed validation (if available)
+
+**About Paths:**
+
+- **DocumentPath**: Uses [JSON Pointer](https://datatracker.ietf.org/doc/html/rfc6901) syntax (RFC 6901). Empty string `""` represents the root of the document.
+  - Examples: `""` (root), `/port` (top-level property), `/users/0/email` (nested array element)
+
+- **SchemaPath**: Contains the full resolved `file://` URI plus JSON Pointer fragment to the exact constraint that failed.
+  - Format: `file:///absolute/path/to/schema.json#/properties/port/type`
+  - Always shows the **actual file location**, not `$id` values
+  - The fragment (after `#`) is a JSON Pointer to the constraint within that schema file
+  - Useful for debugging: tells you exactly which file and which constraint failed
 
 **About JSON Pointer:** Path values use [JSON Pointer](https://datatracker.ietf.org/doc/html/rfc6901) syntax, the standard format used by JSON Schema validators. Per RFC 6901:
 - Empty string `""` represents the whole document (root)

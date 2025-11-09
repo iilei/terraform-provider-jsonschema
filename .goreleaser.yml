@@ -41,6 +41,41 @@ archives:
 checksum:
   name_template: '{{ .ProjectName }}_{{ .Version }}_SHA256SUMS'
   algorithm: sha256
+
+changelog:
+  use: github
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^chore:'
+      - '^ci:'
+      - 'README'
+      - 'Merge pull request'
+      - 'Merge branch'
+  groups:
+    - title: '⚠️ Breaking Changes'
+      regexp: "^.*!(\\(.*\\))?:.*$"
+      order: 0
+    - title: 'Features'
+      regexp: "^.*feat(\\(.*\\))?:.*$"
+      order: 1
+    - title: 'Bug Fixes'
+      regexp: "^.*fix(\\(.*\\))?:.*$"
+      order: 2
+    - title: 'Performance Improvements'
+      regexp: "^.*perf(\\(.*\\))?:.*$"
+      order: 3
+    - title: 'Refactoring'
+      regexp: "^.*refactor(\\(.*\\))?:.*$"
+      order: 4
+    - title: 'Documentation'
+      regexp: "^.*docs(\\(.*\\))?:.*$"
+      order: 5
+    - title: 'Other Changes'
+      order: 999
+
 release:
   # Set to true if you want to disable the release
   # This is useful if you want to create the release manually
