@@ -224,9 +224,11 @@ Available in `error_message_template`:
 Each error in `{{.Errors}}` contains:
 
 - `{{.Message}}` - Human-readable error message
-- `{{.Path}}` - JSON path where the error occurred (e.g., `/user/name`)
-- `{{.SchemaPath}}` - Schema path of the failing constraint
+- `{{.Path}}` - JSON Pointer ([RFC 6901](https://datatracker.ietf.org/doc/html/rfc6901)) to the error location in the document (e.g., `/user/email`, `/items/0`)
+- `{{.SchemaPath}}` - JSON Pointer to the failing constraint in the schema (e.g., `schema.json#/properties/email/type`)
 - `{{.Value}}` - The actual value that failed validation (if available)
+
+**About JSON Pointer:** Path values use [JSON Pointer](https://datatracker.ietf.org/doc/html/rfc6901) syntax, the standard format used by JSON Schema validators. This format uses `/` as a separator and starts with `/` for the document root. Array indices are represented as numbers (e.g., `/items/0` for the first item).
 
 **Quick Reference:**
 
@@ -234,8 +236,8 @@ Each error in `{{.Errors}}` contains:
 # Access all error attributes
 {{range .Errors}}
   {{.Message}}      # "at '/email': got number, want string"
-  {{.Path}}         # "/email"
-  {{.SchemaPath}}   # "schema.json#/properties/email"
+  {{.Path}}         # "/email" (JSON Pointer to document location)
+  {{.SchemaPath}}   # "schema.json#/properties/email/type" (JSON Pointer to schema constraint)
   {{.Value}}        # 12345
 {{end}}
 ```
