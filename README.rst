@@ -8,6 +8,9 @@ terraform-provider-jsonschema
 
 A |terraform|_ provider for validating JSON and JSON5 documents using |json-schema|_ specifications.
 
+.. note::
+   **Version 0.x Stability**: This provider is in initial development (0.x.x versions). Per `semantic versioning <https://semver.org/#spec-item-4>`_, breaking changes may occur in minor or patch releases. Pin your provider version and review changelogs before upgrading. Stability is expected at version 1.0.0.
+
 Features
 ========
 
@@ -119,10 +122,10 @@ Customize error output with Go templates:
   data "jsonschema_validator" "config" {
     document = file("config.json")
     schema   = "config.schema.json"
-    error_message_template = "{{range .Errors}}{{.Path}}: {{.Message}}\n{{end}}"
+    error_message_template = "{{range .Errors}}{{.DocumentPath}}: {{.Message}}\n{{end}}"
   }
 
-Available template variables: ``{{.FullMessage}}``, ``{{.ErrorCount}}``, ``{{.Errors}}``, ``{{.Schema}}``, ``{{.Document}}``
+Available template variables: ``{{.FullMessage}}``, ``{{.ErrorCount}}``, ``{{.Errors}}``, ``{{.SchemaFile}}``, ``{{.Document}}``
 
 See the `full documentation <docs/index.md>`_ for advanced templating examples.
 

@@ -2,6 +2,8 @@
 
 Terraform provider for validating JSON and JSON5 documents using [JSON Schema](https://json-schema.org/) specifications.
 
+> **Note:** Version 0.x is in initial development. Breaking changes may occur between releases per [semver](https://semver.org/#spec-item-4). Pin versions in production.
+
 ## Features
 
 ### Core Capabilities
@@ -36,7 +38,7 @@ provider "jsonschema" {
 ### Configuration Arguments
 
 - `schema_version` (Optional) - JSON Schema draft version. Defaults to `"draft/2020-12"`.
-- `error_message_template` (Optional) - Go template for error messages. Available variables: `{{.Schema}}`, `{{.Document}}`, `{{.FullMessage}}`, `{{.Errors}}`, `{{.ErrorCount}}`. Use `{{range .Errors}}` to iterate over individual errors.
+- `error_message_template` (Optional) - Go template for error messages. Available variables: `{{.SchemaFile}}`, `{{.Document}}`, `{{.FullMessage}}`, `{{.Errors}}`, `{{.ErrorCount}}`. Use `{{range .Errors}}` to iterate over individual errors.
 
 ## Basic Example
 
@@ -132,14 +134,14 @@ data "jsonschema_validator" "legacy_config" {
 data "jsonschema_validator" "detailed_validation" {
   document = file("config.json")
   schema   = "config.schema.json"
-  error_message_template = "Schema {{.Schema}} failed: {{.FullMessage}}"
+  error_message_template = "Schema {{.SchemaFile}} failed: {{.FullMessage}}"
 }
 
 # Individual error iteration for multiple validation errors
 data "jsonschema_validator" "individual_errors" {
   document = file("complex-config.json")
   schema   = "complex.schema.json"
-  error_message_template = "{{range .Errors}}{{.Path}}: {{.Message}}\n{{end}}"
+  error_message_template = "{{range .Errors}}{{.DocumentPath}}: {{.Message}}\n{{end}}"
 }
 ```
 
@@ -175,7 +177,7 @@ data "jsonschema_validator" "config" {
 data "jsonschema_validator" "individual_errors" {
   document = file("api-config.json")
   schema   = "api.schema.json"
-  error_message_template = "{{range .Errors}}{{.Path}}: {{.Message}}\n{{end}}"
+  error_message_template = "{{range .Errors}}{{.DocumentPath}}: {{.Message}}\n{{end}}"
 }
 
 # Detailed format with error count
@@ -183,15 +185,15 @@ data "jsonschema_validator" "detailed_format" {
   document = file("config.json")
   schema   = "config.schema.json"
   error_message_template = <<-EOT
-    Found {{.ErrorCount}} validation errors in {{.Schema}}:
-    {{range $i, $e := .Errors}}{{add $i 1}}. {{.Path}}: {{.Message}}
+    Found {{.ErrorCount}} validation errors in {{.SchemaFile}}:
+    {{range $i, $e := .Errors}}{{add $i 1}}. {{.DocumentPath}}: {{.Message}}
     {{end}}
   EOT
 }
 
 # CI/CD friendly format
 provider "jsonschema" {
-  error_message_template = "{{range .Errors}}::error file={{$.Schema}}::{{.Message}}{{if .Path}} at {{.Path}}{{end}}\n{{end}}"
+  error_message_template = "{{range .Errors}}::error file={{$.SchemaFile}}::{{.Message}}{{if .DocumentPath}} at {{.DocumentPath}}{{end}}\n{{end}}"
 }
 
 # JSON structured output
@@ -199,7 +201,7 @@ data "jsonschema_validator" "structured_errors" {
   document = file("config.json")
   schema   = "config.schema.json"
   error_message_template = <<-EOT
-    {"validation_failed":true,"schema":"{{.Schema}}","error_count":{{.ErrorCount}},"errors":[{{range $i,$e := .Errors}}{{if $i}},{{end}}{"path":"{{.Path}}","message":"{{.Message}}"}{{end}}]}
+    {"validation_failed":true,"schema":"{{.SchemaFile}}","error_count":{{.ErrorCount}},"errors":[{{range $i,$e := .Errors}}{{if $i}},{{end}}{"documentPath":"{{.DocumentPath}}","message":"{{.Message}}"}{{end}}]}
   EOT
 }
 ```

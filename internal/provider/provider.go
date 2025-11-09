@@ -25,7 +25,7 @@ func New(version string) func() *schema.Provider {
 					Type:        schema.TypeString,
 					Optional:    true,
 					Default:     "{{.FullMessage}}",
-					Description: "Default error message template for validation failures. Can be overridden per data source. Available variables: {{.Schema}}, {{.Document}}, {{.FullMessage}}, {{.Errors}}, {{.ErrorCount}}. Use {{range .Errors}} to iterate over individual errors.",
+					Description: "Default error message template for validation failures. Can be overridden per data source. Available variables: {{.SchemaFile}}, {{.Document}}, {{.FullMessage}}, {{.Errors}}, {{.ErrorCount}}. Use {{range .Errors}} to iterate over individual errors.",
 				},
 
 			},

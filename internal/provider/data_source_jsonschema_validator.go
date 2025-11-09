@@ -37,7 +37,7 @@ func dataSourceJsonschemaValidator() *schema.Resource {
 			"error_message_template": {
 				Type:        schema.TypeString,
 				Optional:    true,
-				Description: "Template for formatting validation error messages. Available variables: {{.Schema}}, {{.Document}}, {{.FullMessage}}, {{.Errors}}, {{.ErrorCount}}. Use {{range .Errors}} to iterate over individual errors.",
+				Description: "Template for formatting validation error messages. Available variables: {{.SchemaFile}}, {{.Document}}, {{.FullMessage}}, {{.Errors}}, {{.ErrorCount}}. Use {{range .Errors}} to iterate over individual errors.",
 			},
 			"ref_overrides": {
 				Type:        schema.TypeMap,

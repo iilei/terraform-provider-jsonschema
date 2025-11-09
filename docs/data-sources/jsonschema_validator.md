@@ -13,8 +13,8 @@ The `jsonschema_validator` data source validates JSON or JSON5 documents using [
 | `{{.SchemaPath}}` | `{{.SchemaPath}}` | *(unchanged)* JSON Pointer to schema constraint |
 
 **Migration:**
-- Replace `{{.Schema}}` with `{{.SchemaFile}}` in all templates
-- Replace `{{.Path}}` with `{{.DocumentPath}}` in all templates
+- Replace `{{.Schema}}` with `{{.SchemaFile}}` in all instances of `error_message_template`
+- Replace `{{.Path}}` with `{{.DocumentPath}}` in all instances of `error_message_template`
 - No changes needed for `{{.SchemaPath}}`, `{{.Message}}`, `{{.Value}}`, etc.
 
 ## Example Usage

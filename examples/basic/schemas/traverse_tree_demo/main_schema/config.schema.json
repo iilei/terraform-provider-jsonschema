@@ -1,0 +1,14 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "./../main_schema/config.schema.json",
+    "$comment": "Main config schema that references ./../traverse_up_dir/test.schema.json",
+    "type": "object",
+    "properties": {
+        "version": {
+            "$ref": "./../traverse_up_dir/test.schema.json#/properties/version"
+        }
+    },
+    "required": [
+        "version"
+    ]
+}
