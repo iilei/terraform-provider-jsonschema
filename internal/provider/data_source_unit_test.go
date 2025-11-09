@@ -384,3 +384,274 @@ func TestDataSourceJsonschemaValidatorRead_ConfigurationCombinations(t *testing.
 		})
 	}
 }
+
+func TestDataSourceJsonschemaValidatorRead_RefOverrides(t *testing.T) {
+	// Create temporary directory for test files
+	tempDir, err := os.MkdirTemp("", "jsonschema_test_ref")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Create a base schema that references a remote URL
+	baseSchemaContent := `{
+		"type": "object",
+		"properties": {
+			"user": {
+				"$ref": "https://example.com/schemas/user.json"
+			}
+		}
+	}`
+	baseSchemaFile := filepath.Join(tempDir, "base.schema.json")
+	if err := os.WriteFile(baseSchemaFile, []byte(baseSchemaContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a local override schema
+	overrideSchemaContent := `{
+		"type": "object",
+		"required": ["name"],
+		"properties": {
+			"name": {"type": "string"},
+			"email": {"type": "string", "format": "email"}
+		}
+	}`
+	overrideSchemaFile := filepath.Join(tempDir, "user.schema.json")
+	if err := os.WriteFile(overrideSchemaFile, []byte(overrideSchemaContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create invalid override file
+	invalidOverrideContent := `{invalid json`
+	invalidOverrideFile := filepath.Join(tempDir, "invalid.schema.json")
+	if err := os.WriteFile(invalidOverrideFile, []byte(invalidOverrideContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name          string
+		document      string
+		refOverrides  map[string]interface{}
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name:     "valid ref override",
+			document: `{"user": {"name": "John", "email": "john@example.com"}}`,
+			refOverrides: map[string]interface{}{
+				"https://example.com/schemas/user.json": overrideSchemaFile,
+			},
+			expectError: false,
+		},
+		{
+			name:     "validation fails with override",
+			document: `{"user": {"email": "john@example.com"}}`, // missing required "name"
+			refOverrides: map[string]interface{}{
+				"https://example.com/schemas/user.json": overrideSchemaFile,
+			},
+			expectError:   true,
+			errorContains: "validation",
+		},
+		{
+			name:     "missing override file",
+			document: `{"user": {"name": "John"}}`,
+			refOverrides: map[string]interface{}{
+				"https://example.com/schemas/user.json": "/nonexistent/file.json",
+			},
+			expectError:   true,
+			errorContains: "ref_override: failed to read local file",
+		},
+		{
+			name:     "invalid override file syntax",
+			document: `{"user": {"name": "John"}}`,
+			refOverrides: map[string]interface{}{
+				"https://example.com/schemas/user.json": invalidOverrideFile,
+			},
+			expectError:   true,
+			errorContains: "ref_override: failed to parse local file",
+		},
+	}
+
+	config := &ProviderConfig{
+		DefaultErrorTemplate: "{{.FullMessage}}",
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resourceData := schema.TestResourceDataRaw(t, dataSourceJsonschemaValidator().Schema, map[string]interface{}{
+				"document":      tt.document,
+				"schema":        baseSchemaFile,
+				"ref_overrides": tt.refOverrides,
+			})
+
+			err := dataSourceJsonschemaValidatorRead(resourceData, config)
+
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("expected error but got none")
+					return
+				}
+				if tt.errorContains != "" && !strings.Contains(err.Error(), tt.errorContains) {
+					t.Errorf("expected error to contain %q, got %q", tt.errorContains, err.Error())
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+func TestDataSourceJsonschemaValidatorRead_SchemaCompilationErrors(t *testing.T) {
+	// Create temporary directory
+	tempDir, err := os.MkdirTemp("", "jsonschema_test_compile")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Create schema with invalid JSON Schema syntax
+	invalidSchemaContent := `{
+		"type": "object",
+		"properties": {
+			"name": {
+				"type": "invalid_type_here"
+			}
+		}
+	}`
+	invalidSchemaFile := filepath.Join(tempDir, "invalid.schema.json")
+	if err := os.WriteFile(invalidSchemaFile, []byte(invalidSchemaContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create schema with circular reference
+	circularSchemaContent := `{
+		"$ref": "#"
+	}`
+	circularSchemaFile := filepath.Join(tempDir, "circular.schema.json")
+	if err := os.WriteFile(circularSchemaFile, []byte(circularSchemaContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name          string
+		schemaFile    string
+		document      string
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name:          "invalid type in schema",
+			schemaFile:    invalidSchemaFile,
+			document:      `{"name": "test"}`,
+			expectError:   true,
+			errorContains: "failed to compile schema",
+		},
+	}
+
+	config := &ProviderConfig{
+		DefaultErrorTemplate: "{{.FullMessage}}",
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resourceData := schema.TestResourceDataRaw(t, dataSourceJsonschemaValidator().Schema, map[string]interface{}{
+				"document": tt.document,
+				"schema":   tt.schemaFile,
+			})
+
+			err := dataSourceJsonschemaValidatorRead(resourceData, config)
+
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("expected error but got none")
+					return
+				}
+				if tt.errorContains != "" && !strings.Contains(err.Error(), tt.errorContains) {
+					t.Errorf("expected error to contain %q, got %q", tt.errorContains, err.Error())
+				}
+			}
+		})
+	}
+}
+
+func TestDataSourceJsonschemaValidatorRead_DraftHandling(t *testing.T) {
+	// Create temporary directory
+	tempDir, err := os.MkdirTemp("", "jsonschema_test_draft")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	schemaContent := `{"type": "object", "properties": {"name": {"type": "string"}}}`
+	schemaFile := filepath.Join(tempDir, "test.schema.json")
+	if err := os.WriteFile(schemaFile, []byte(schemaContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name           string
+		providerConfig *ProviderConfig
+		schemaVersion  string
+		expectError    bool
+	}{
+		{
+			name: "nil default draft in config",
+			providerConfig: &ProviderConfig{
+				DefaultErrorTemplate: "{{.FullMessage}}",
+				DefaultDraft:         nil,
+			},
+			schemaVersion: "",
+			expectError:   false,
+		},
+		{
+			name: "schema version with default draft",
+			providerConfig: &ProviderConfig{
+				DefaultErrorTemplate: "{{.FullMessage}}",
+				DefaultSchemaVersion: "draft-07",
+			},
+			schemaVersion: "",
+			expectError:   false,
+		},
+		{
+			name: "override schema version",
+			providerConfig: &ProviderConfig{
+				DefaultErrorTemplate: "{{.FullMessage}}",
+				DefaultSchemaVersion: "draft-07",
+			},
+			schemaVersion: "draft-04",
+			expectError:   false,
+		},
+		{
+			name: "completely empty config - should use fallback Draft2020",
+			providerConfig: &ProviderConfig{
+				DefaultErrorTemplate: "{{.FullMessage}}",
+				DefaultSchemaVersion: "",
+				DefaultDraft:         nil,
+			},
+			schemaVersion: "",
+			expectError:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resourceData := schema.TestResourceDataRaw(t, dataSourceJsonschemaValidator().Schema, map[string]interface{}{
+				"document":       `{"name": "test"}`,
+				"schema":         schemaFile,
+				"schema_version": tt.schemaVersion,
+			})
+
+			err := dataSourceJsonschemaValidatorRead(resourceData, tt.providerConfig)
+
+			if tt.expectError && err == nil {
+				t.Errorf("expected error but got none")
+			}
+			if !tt.expectError && err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+		})
+	}
+}

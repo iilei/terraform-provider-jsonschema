@@ -358,6 +358,261 @@ func TestFormatValidationErrorTemplateEdgeCases(t *testing.T) {
 	}
 }
 
+func TestExtractCleanMessage(t *testing.T) {
+	tests := []struct {
+		name     string
+		message  string
+		path     string
+		expected string
+	}{
+		{
+			name:     "root path with empty string prefix",
+			message:  "at '': required property missing",
+			path:     "/",
+			expected: "required property missing",
+		},
+		{
+			name:     "nested path with prefix",
+			message:  "at '/name': must be string",
+			path:     "/name",
+			expected: "must be string",
+		},
+		{
+			name:     "message without path prefix",
+			message:  "validation error",
+			path:     "/test",
+			expected: "validation error",
+		},
+		{
+			name:     "empty message",
+			message:  "",
+			path:     "/",
+			expected: "",
+		},
+		{
+			name:     "path with multiple segments",
+			message:  "at '/user/address/city': invalid format",
+			path:     "/user/address/city",
+			expected: "invalid format",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := extractCleanMessage(tt.message, tt.path)
+			if result != tt.expected {
+				t.Errorf("Expected %q, got %q", tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestFormatInstanceLocation(t *testing.T) {
+	tests := []struct {
+		name     string
+		location []string
+		expected string
+	}{
+		{
+			name:     "empty location",
+			location: []string{},
+			expected: "/",
+		},
+		{
+			name:     "single element",
+			location: []string{"name"},
+			expected: "/name",
+		},
+		{
+			name:     "multiple elements",
+			location: []string{"user", "address", "city"},
+			expected: "/user/address/city",
+		},
+		{
+			name:     "array index",
+			location: []string{"items", "0", "name"},
+			expected: "/items/0/name",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := formatInstanceLocation(tt.location)
+			if result != tt.expected {
+				t.Errorf("Expected %q, got %q", tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestTruncateString(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		maxLen   int
+		expected string
+	}{
+		{
+			name:     "short string no truncation",
+			input:    "hello",
+			maxLen:   10,
+			expected: "hello",
+		},
+		{
+			name:     "exact length no truncation",
+			input:    "hello",
+			maxLen:   5,
+			expected: "hello",
+		},
+		{
+			name:     "long string with truncation",
+			input:    "this is a very long string that needs truncation",
+			maxLen:   10,
+			expected: "this is a ...",
+		},
+		{
+			name:     "empty string",
+			input:    "",
+			maxLen:   10,
+			expected: "",
+		},
+		{
+			name:     "single character over limit",
+			input:    "ab",
+			maxLen:   1,
+			expected: "a...",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := truncateString(tt.input, tt.maxLen)
+			if result != tt.expected {
+				t.Errorf("Expected %q, got %q", tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestGenerateSortedFullMessage(t *testing.T) {
+	// Test the message generation without using the actual ValidationError
+	// We'll test this indirectly through FormatValidationError
+	tests := []struct {
+		name          string
+		errorMsg      string
+		template      string
+		expectedParts []string
+	}{
+		{
+			name:     "error with multiple parts",
+			errorMsg: "validation error",
+			template: "{{.FullMessage}}",
+			expectedParts: []string{"validation error"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockErr := fmt.Errorf("%s", tt.errorMsg)
+			result := FormatValidationError(mockErr, "test.schema.json", `{"test": "data"}`, tt.template)
+			
+			for _, part := range tt.expectedParts {
+				if !strings.Contains(result.Error(), part) {
+					t.Errorf("Expected result to contain %q, got %q", part, result.Error())
+				}
+			}
+		})
+	}
+}
+
+func TestSortValidationErrorsSecondarySort(t *testing.T) {
+	// Test secondary sort by message when paths are the same
+	errors := []ValidationErrorDetail{
+		{Message: "error z", Path: "/same"},
+		{Message: "error a", Path: "/same"},
+		{Message: "error m", Path: "/same"},
+	}
+	
+	sortValidationErrors(errors)
+	
+	// Verify they are sorted alphabetically by message
+	if errors[0].Message != "error a" {
+		t.Errorf("Expected first error to be 'error a', got %q", errors[0].Message)
+	}
+	if errors[1].Message != "error m" {
+		t.Errorf("Expected second error to be 'error m', got %q", errors[1].Message)
+	}
+	if errors[2].Message != "error z" {
+		t.Errorf("Expected third error to be 'error z', got %q", errors[2].Message)
+	}
+}
+
+func TestFormatValidationErrorWithLongDocument(t *testing.T) {
+	// Test document truncation in error context
+	longDocument := strings.Repeat("x", 1000)
+	mockErr := fmt.Errorf("validation error")
+	
+	result := FormatValidationError(mockErr, "test.json", longDocument, "Doc: {{.Document}}")
+	
+	// Verify the document was truncated
+	if !strings.Contains(result.Error(), "...") {
+		t.Error("Expected document to be truncated in error message")
+	}
+	
+	// Verify error message is not absurdly long
+	if len(result.Error()) > 600 {
+		t.Errorf("Error message too long: %d characters", len(result.Error()))
+	}
+}
+
+func TestFormatValidationErrorTemplateAddFunction(t *testing.T) {
+	// Test the template's add function
+	mockErr := fmt.Errorf("validation error")
+	
+	result := FormatValidationError(mockErr, "test.json", `{"test": "data"}`, 
+		"Error {{add 1 2}}: {{.FullMessage}}")
+	
+	if !strings.Contains(result.Error(), "Error 3:") {
+		t.Errorf("Expected add function to work, got: %s", result.Error())
+	}
+}
+
+func TestFormatValidationErrorEdgeCaseTemplates(t *testing.T) {
+	// Test various template edge cases
+	mockErr := fmt.Errorf("test error")
+	
+	tests := []struct {
+		name     string
+		template string
+		expected string
+	}{
+		{
+			name:     "template with range over empty errors",
+			template: "Count: {{.ErrorCount}} {{range .Errors}}Should not appear{{end}}",
+			expected: "Count: 1",
+		},
+		{
+			name:     "template with multiple add operations",
+			template: "Result: {{add (add 1 2) 3}}",
+			expected: "Result: 6",
+		},
+		{
+			name:     "template with conditionals",
+			template: "{{if gt .ErrorCount 0}}Has errors{{else}}No errors{{end}}",
+			expected: "Has errors",
+		},
+	}
+	
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := FormatValidationError(mockErr, "test.json", `{}`, tt.template)
+			if !strings.Contains(result.Error(), tt.expected) {
+				t.Errorf("Expected %q in result, got: %s", tt.expected, result.Error())
+			}
+		})
+	}
+}
+
 func TestCompactDeterministicJSONEdgeCases(t *testing.T) {
 	tests := []struct {
 		name    string

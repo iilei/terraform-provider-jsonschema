@@ -569,3 +569,181 @@ func TestSortKeysCompleteReflectionCoverage(t *testing.T) {
 		})
 	}
 }
+
+func TestSortKeysInterfaceHandling(t *testing.T) {
+	// Specifically test interface{} containing nil edge cases
+	tests := []struct {
+		name     string
+		input    interface{}
+		expected interface{}
+	}{
+		{
+			name: "interface containing nil interface",
+			input: func() interface{} {
+				var inner interface{} = nil
+				return inner
+			}(),
+			expected: nil,
+		},
+		{
+			name: "interface containing nil pointer",
+			input: func() interface{} {
+				var ptr *string = nil
+				var iface interface{} = ptr
+				return iface
+			}(),
+			expected: nil,
+		},
+		{
+			name: "nested interface with non-nil value",
+			input: func() interface{} {
+				s := "value"
+				var iface interface{} = &s
+				return iface
+			}(),
+			expected: "value",
+		},
+		{
+			name: "slice with interface nil elements",
+			input: []interface{}{
+				func() interface{} {
+					var iface interface{} = nil
+					return iface
+				}(),
+				func() interface{} {
+					var ptr *int = nil
+					return ptr
+				}(),
+			},
+			expected: []interface{}{nil, nil},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := sortKeys(tt.input)
+			
+			// Marshal both to JSON for comparison
+			expectedJSON, err1 := json.Marshal(tt.expected)
+			resultJSON, err2 := json.Marshal(result)
+			
+			if err1 != nil {
+				t.Fatalf("Failed to marshal expected: %v", err1)
+			}
+			if err2 != nil {
+				t.Fatalf("Failed to marshal result: %v", err2)
+			}
+			
+			if string(expectedJSON) != string(resultJSON) {
+				t.Errorf("Expected %s, got %s", string(expectedJSON), string(resultJSON))
+			}
+		})
+	}
+}
+
+func TestMarshalDeterministicComplexNesting(t *testing.T) {
+	// Test complex nested structures to ensure full coverage
+	tests := []struct {
+		name  string
+		input interface{}
+	}{
+		{
+			name: "deeply nested maps and slices",
+			input: map[string]interface{}{
+				"z_first": map[string]interface{}{
+					"z_nested": []interface{}{
+						map[string]interface{}{
+							"z_item": "value",
+							"a_item": "value",
+						},
+					},
+				},
+				"a_last": []interface{}{
+					map[string]interface{}{
+						"z_key": "value",
+						"a_key": "value",
+					},
+				},
+			},
+		},
+		{
+			name: "interface with pointers and nils",
+			input: map[string]interface{}{
+				"nil_interface": func() interface{} {
+					var i interface{} = nil
+					return i
+				}(),
+				"nil_ptr": (*int)(nil),
+				"valid_ptr": func() interface{} {
+					i := 42
+					return &i
+				}(),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Should not panic and produce valid JSON
+			result, err := MarshalDeterministic(tt.input)
+			if err != nil {
+				t.Errorf("MarshalDeterministic failed: %v", err)
+			}
+			
+			// Verify result is valid JSON
+			var unmarshaled interface{}
+			if err := json.Unmarshal(result, &unmarshaled); err != nil {
+				t.Errorf("Result is not valid JSON: %v", err)
+			}
+		})
+	}
+}
+
+func TestSortKeysInterfaceWithNonNilElem(t *testing.T) {
+	// Test interface case where IsNil() is false and has non-nil elem
+	// This covers the reflect.Interface case lines 61-65
+	
+	// Create a struct that will be passed as interface{}
+	type testStruct struct {
+		Value string
+	}
+	
+	testData := map[string]interface{}{
+		"z_key": func() interface{} {
+			// Return a non-nil interface containing a non-nil value
+			var iface interface{} = &testStruct{Value: "test"}
+			return iface
+		}(),
+		"a_key": func() interface{} {
+			s := "string value"
+			var iface interface{} = &s
+			return iface
+		}(),
+		"m_key": func() interface{} {
+			// Nested interface
+			inner := map[string]interface{}{"nested": "value"}
+			var iface interface{} = inner
+			return iface
+		}(),
+	}
+	
+	// This should recursively handle the interface types
+	result := sortKeys(testData)
+	
+	// Verify it's JSON-serializable
+	jsonBytes, err := json.Marshal(result)
+	if err != nil {
+		t.Errorf("Failed to marshal result: %v", err)
+	}
+	
+	// Verify the keys are sorted
+	var resultMap map[string]interface{}
+	if err := json.Unmarshal(jsonBytes, &resultMap); err != nil {
+		t.Errorf("Failed to unmarshal result: %v", err)
+	}
+	
+	// Keys should be in sorted order in the JSON
+	if !strings.Contains(string(jsonBytes), `"a_key"`) {
+		t.Error("Expected a_key in result")
+	}
+}

@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -321,4 +322,229 @@ func TestJSON5FileLoaderErrors(t *testing.T) {
 			t.Error("Expected error for invalid JSON5, got nil")
 		}
 	})
+}
+
+func TestParseJSON5EdgeCases(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       []byte
+		expectError bool
+		description string
+	}{
+		{
+			name:        "empty byte slice",
+			input:       []byte{},
+			expectError: true,
+			description: "empty input should fail",
+		},
+		{
+			name:        "only whitespace",
+			input:       []byte("   \n\t  "),
+			expectError: true,
+			description: "whitespace-only input should fail",
+		},
+		{
+			name:        "multiline comment",
+			input:       []byte(`{"key": "value" /* multiline\ncomment */}`),
+			expectError: false,
+			description: "multiline comments should be handled",
+		},
+		{
+			name:        "single line comment",
+			input:       []byte("{\n\"key\": \"value\" // single line comment\n}"),
+			expectError: false,
+			description: "single line comments should be handled",
+		},
+		{
+			name:        "hex numbers",
+			input:       []byte(`{"hex": 0xFF}`),
+			expectError: false,
+			description: "hex numbers should be parsed",
+		},
+		{
+			name:        "Infinity",
+			input:       []byte(`{"inf": Infinity}`),
+			expectError: false,
+			description: "Infinity should be parsed",
+		},
+		{
+			name:        "NaN",
+			input:       []byte(`{"nan": NaN}`),
+			expectError: false,
+			description: "NaN should be parsed",
+		},
+		{
+			name:        "leading plus sign",
+			input:       []byte(`{"num": +42}`),
+			expectError: false,
+			description: "leading plus sign should be allowed",
+		},
+		{
+			name:        "trailing comma in array",
+			input:       []byte(`[1, 2, 3,]`),
+			expectError: false,
+			description: "trailing comma in array should be allowed",
+		},
+		{
+			name:        "unclosed object",
+			input:       []byte(`{"key": "value"`),
+			expectError: true,
+			description: "unclosed object should error",
+		},
+		{
+			name:        "unclosed array",
+			input:       []byte(`[1, 2, 3`),
+			expectError: true,
+			description: "unclosed array should error",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := ParseJSON5(tt.input)
+			
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("%s: expected error but got none", tt.description)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("%s: unexpected error: %v", tt.description, err)
+				}
+				if result == nil {
+					t.Errorf("%s: expected non-nil result", tt.description)
+				}
+			}
+		})
+	}
+}
+
+func TestJSON5ToJSONEdgeCases(t *testing.T) {
+	tests := []struct {
+		name          string
+		input         []byte
+		expectError   bool
+		validateJSON  bool
+	}{
+		{
+			name:         "complex nested structure",
+			input:        []byte(`{outer: {inner: [1, 2, {deep: "value"}]}}`),
+			expectError:  false,
+			validateJSON: true,
+		},
+		{
+			name:         "array of objects with comments",
+			input:        []byte(`[{a: 1}, /* comment */ {b: 2}]`),
+			expectError:  false,
+			validateJSON: true,
+		},
+		{
+			name:         "mixed quotes",
+			input:        []byte(`{"double": "value", 'single': 'value'}`),
+			expectError:  false,
+			validateJSON: true,
+		},
+		{
+			name:        "invalid structure",
+			input:       []byte(`{broken: structure`),
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := JSON5ToJSON(tt.input)
+			
+			if tt.expectError {
+				if err == nil {
+					t.Error("expected error but got none")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+				return
+			}
+
+			if tt.validateJSON {
+				// Verify result is valid JSON
+				var unmarshaled interface{}
+				if err := json.Unmarshal(result, &unmarshaled); err != nil {
+					t.Errorf("result is not valid JSON: %v", err)
+				}
+			}
+		})
+	}
+}
+
+func TestJSON5FileLoaderWithVariousFormats(t *testing.T) {
+	tmpDir := t.TempDir()
+	
+	tests := []struct {
+		name        string
+		content     string
+		expectError bool
+		description string
+	}{
+		{
+			name:        "pure JSON",
+			content:     `{"type": "object", "properties": {"name": {"type": "string"}}}`,
+			expectError: false,
+			description: "pure JSON should work",
+		},
+		{
+			name: "JSON5 with all features",
+			content: `{
+				// This is a comment
+				type: "object",
+				properties: {
+					name: {type: 'string',}, // trailing comma
+					age: {type: "number",}
+				},
+			}`,
+			expectError: false,
+			description: "JSON5 with comments and trailing commas",
+		},
+		{
+			name:        "empty file",
+			content:     ``,
+			expectError: true,
+			description: "empty file should error",
+		},
+		{
+			name:        "only comments",
+			content:     `// just a comment`,
+			expectError: true,
+			description: "file with only comments should error",
+		},
+	}
+
+	loader := JSON5FileLoader{}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create test file
+			testFile := filepath.Join(tmpDir, tt.name+".json5")
+			if err := os.WriteFile(testFile, []byte(tt.content), 0644); err != nil {
+				t.Fatalf("Failed to write test file: %v", err)
+			}
+
+			fileURL := fmt.Sprintf("file://%s", testFile)
+			result, err := loader.Load(fileURL)
+
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("%s: expected error but got none", tt.description)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("%s: unexpected error: %v", tt.description, err)
+				}
+				if result == nil {
+					t.Errorf("%s: expected non-nil result", tt.description)
+				}
+			}
+		})
+	}
 }
