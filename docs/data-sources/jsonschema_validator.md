@@ -2,6 +2,21 @@
 
 The `jsonschema_validator` data source validates JSON or JSON5 documents using [JSON Schema](https://json-schema.org/) specifications with enhanced error templating capabilities.
 
+## ⚠️ Breaking Changes in Error Template Variables
+
+**Template variable names have been clarified for better understanding:**
+
+| Old Name (deprecated) | New Name | Description |
+|----------------------|----------|-------------|
+| `{{.Schema}}` | `{{.SchemaFile}}` | Path to the schema file |
+| `{{.Path}}` | `{{.DocumentPath}}` | JSON Pointer to location in document |
+| `{{.SchemaPath}}` | `{{.SchemaPath}}` | *(unchanged)* JSON Pointer to schema constraint |
+
+**Migration:**
+- Replace `{{.Schema}}` with `{{.SchemaFile}}` in all templates
+- Replace `{{.Path}}` with `{{.DocumentPath}}` in all templates
+- No changes needed for `{{.SchemaPath}}`, `{{.Message}}`, `{{.Value}}`, etc.
+
 ## Example Usage
 
 ### Basic Validation
@@ -84,21 +99,21 @@ data "jsonschema_validator" "default_errors" {
 data "jsonschema_validator" "individual_errors" {
   document = file("config.json")
   schema   = "config.schema.json"
-  error_message_template = "{{range .Errors}}{{.Path}}: {{.Message}}\n{{end}}"
+  error_message_template = "{{range .Errors}}{{.DocumentPath}}: {{.Message}}\n{{end}}"
 }
 
 # Custom format with error count
 data "jsonschema_validator" "counted_errors" {
   document = file("config.json")
   schema   = "config.schema.json"
-  error_message_template = "Found {{.ErrorCount}} errors:\n{{range .Errors}}• {{.Path}}: {{.Message}}\n{{end}}"
+  error_message_template = "Found {{.ErrorCount}} errors:\n{{range .Errors}}• {{.DocumentPath}}: {{.Message}}\n{{end}}"
 }
 
 # CI/CD integration format
 data "jsonschema_validator" "ci_errors" {
   document = file("deployment.json")
   schema   = "deployment.schema.json"
-  error_message_template = "{{range .Errors}}::error file={{$.Schema}}::{{.Message}}{{if .Path}} at {{.Path}}{{end}}\n{{end}}"
+  error_message_template = "{{range .Errors}}::error file={{$.SchemaFile}}::{{.Message}}{{if .DocumentPath}} at {{.DocumentPath}}{{end}}\n{{end}}"
 }
 ```
 
@@ -110,9 +125,9 @@ data "jsonschema_validator" "detailed_format" {
   document = file("config.json")
   schema   = "config.schema.json"
   error_message_template = <<-EOT
-    Schema: {{.Schema}}
+    Schema: {{.SchemaFile}}
     Errors: {{.ErrorCount}}
-    {{range .Errors}}• {{.Path}}: {{.Message}}
+    {{range .Errors}}• {{.DocumentPath}}: {{.Message}}
     {{end}}
   EOT
 }
@@ -123,9 +138,9 @@ data "jsonschema_validator" "json_format" {
   schema   = "config.schema.json"
   error_message_template = jsonencode({
     "validation_failed": true,
-    "schema": "{{.Schema}}",
+    "schema": "{{.SchemaFile}}",
     "error_count": "{{.ErrorCount}}",
-    "errors": "{{range $i, $e := .Errors}}{{if $i}},{{end}}{\"path\":\"{{.Path}}\",\"message\":\"{{.Message}}\"}{{end}}"
+    "errors": "{{range $i, $e := .Errors}}{{if $i}},{{end}}{\"documentPath\":\"{{.DocumentPath}}\",\"message\":\"{{.Message}}\"}{{end}}"
   })
 }
 ```
@@ -135,7 +150,7 @@ data "jsonschema_validator" "json_format" {
 * `document` (Required) - JSON or JSON5 document content to validate.
 * `schema` (Required) - Path to JSON or JSON5 schema file.
 * `schema_version` (Optional) - Schema version override (`"draft-04"` to `"draft/2020-12"`).
-* `error_message_template` (Optional) - Custom Go template for error messages. Available variables: `{{.Schema}}`, `{{.Document}}`, `{{.FullMessage}}`, `{{.Errors}}`, `{{.ErrorCount}}`.
+* `error_message_template` (Optional) - Custom Go template for error messages. Available variables: `{{.SchemaFile}}`, `{{.Document}}`, `{{.FullMessage}}`, `{{.Errors}}`, `{{.ErrorCount}}`.
 * `ref_overrides` (Optional) - Map of remote schema URLs to local file paths. Redirects `$ref` references from remote URLs to local files, enabling offline validation.
 
 ## Attributes Reference
@@ -217,14 +232,14 @@ Available in `error_message_template`:
 - `{{.ErrorCount}}` - Number of individual validation errors
 - `{{.Errors}}` - Array of individual validation errors (for iteration)
 - `{{.Document}}` - The document content (truncated if long)
-- `{{.Schema}}` - Path to the schema file
+- `{{.SchemaFile}}` - Path to the schema file
 
 ### Individual Error Details
 
 Each error in `{{.Errors}}` contains:
 
 - `{{.Message}}` - Human-readable error message
-- `{{.Path}}` - JSON Pointer ([RFC 6901](https://datatracker.ietf.org/doc/html/rfc6901)) to the error location in the document (e.g., `/user/email`, `/items/0`)
+- `{{.DocumentPath}}` - JSON Pointer ([RFC 6901](https://datatracker.ietf.org/doc/html/rfc6901)) to the error location in the document (e.g., `/user/email`, `/items/0`)
 - `{{.SchemaPath}}` - JSON Pointer to the failing constraint in the schema (e.g., `schema.json#/properties/email/type`)
 - `{{.Value}}` - The actual value that failed validation (if available)
 
@@ -239,10 +254,10 @@ Each error in `{{.Errors}}` contains:
 ```hcl
 # Access all error attributes
 {{range .Errors}}
-  {{.Message}}      # "at '/email': got number, want string"
-  {{.Path}}         # "/email" (JSON Pointer to document location)
-  {{.SchemaPath}}   # "schema.json#/properties/email/type" (JSON Pointer to schema constraint)
-  {{.Value}}        # 12345
+  {{.Message}}       # "at '/email': got number, want string"
+  {{.DocumentPath}}  # "/email" (JSON Pointer to document location)
+  {{.SchemaPath}}    # "schema.json#/properties/email/type" (JSON Pointer to schema constraint)
+  {{.Value}}         # 12345
 {{end}}
 ```
 
@@ -255,13 +270,13 @@ Each error in `{{.Errors}}` contains:
 error_message_template = "{{.FullMessage}}"
 
 # Individual error iteration
-error_message_template = "{{range .Errors}}{{.Path}}: {{.Message}}\n{{end}}"
+error_message_template = "{{range .Errors}}{{.DocumentPath}}: {{.Message}}\n{{end}}"
 
 # Numbered list format (one-based)
-error_message_template = "{{.ErrorCount}} validation errors:\n{{range $i, $e := .Errors}}{{add $i 1}}. {{.Message}} (at {{.Path}})\n{{end}}"
+error_message_template = "{{.ErrorCount}} validation errors:\n{{range $i, $e := .Errors}}{{add $i 1}}. {{.Message}} (at {{.DocumentPath}})\n{{end}}"
 
 # CI/CD format
-error_message_template = "{{range .Errors}}::error file={{$.Schema}}::{{.Message}}{{if .Path}} at {{.Path}}{{end}}\n{{end}}"
+error_message_template = "{{range .Errors}}::error file={{$.SchemaFile}}::{{.Message}}{{if .DocumentPath}} at {{.DocumentPath}}{{end}}\n{{end}}"
 ```
 
 ### Template Functions

@@ -21,7 +21,7 @@ func TestErrorMessageTemplating(t *testing.T) {
 		},
 		{
 			name:     "error with schema",
-			template: "Error in {{.Schema}}: {{.FullMessage}}",
+			template: "Error in {{.SchemaFile}}: {{.FullMessage}}",
 			expected: "Error in test.schema.json: required property 'name' missing",
 		},
 		{
@@ -31,12 +31,12 @@ func TestErrorMessageTemplating(t *testing.T) {
 		},
 		{
 			name:     "error with path from individual errors",
-			template: "{{range .Errors}}{{.Path}}: {{.Message}}{{end}}",
+			template: "{{range .Errors}}{{.DocumentPath}}: {{.Message}}{{end}}",
 			expected: ": required property 'name' missing",
 		},
 		{
 			name:     "ci format template",
-			template: "::error file={{.Schema}},line=1::{{.FullMessage}}",
+			template: "::error file={{.SchemaFile}},line=1::{{.FullMessage}}",
 			expected: "::error file=test.schema.json,line=1::required property 'name' missing",
 		},
 	}
@@ -93,7 +93,7 @@ func TestErrorFormattingEdgeCases(t *testing.T) {
 
 	// Test all available variables
 	result3 := FormatValidationError(mockError, "test.schema.json", `{"test": true}`, 
-		"Error: {{.FullMessage}}, Schema: {{.Schema}}, Count: {{.ErrorCount}}, Doc: {{.Document}}")
+		"Error: {{.FullMessage}}, Schema: {{.SchemaFile}}, Count: {{.ErrorCount}}, Doc: {{.Document}}")
 	expected := `Error: validation error, Schema: test.schema.json, Count: 1, Doc: {"test": true}`
 	if result3.Error() != expected {
 		t.Errorf("Expected: %s\nGot: %s", expected, result3.Error())
@@ -125,7 +125,7 @@ func TestFormatValidationErrorComplexScenarios(t *testing.T) {
 			err:        &MockValidationError{message: "validation failed", path: "/name"},
 			schemaPath: "/path/to/schema.json",
 			document:   `{"name": 123}`,
-			template:   "Error: {{.FullMessage}} | Schema: {{.Schema}}",
+			template:   "Error: {{.FullMessage}} | Schema: {{.SchemaFile}}",
 			expectedContains: []string{"Error:", "validation failed", "Schema:", "/path/to/schema.json"},
 		},
 		{
@@ -133,7 +133,7 @@ func TestFormatValidationErrorComplexScenarios(t *testing.T) {
 			err:        &MockValidationError{message: "type error", path: "/age"},
 			schemaPath: "user.schema.json",
 			document:   `{"age": "twenty"}`,
-			template:   "Found {{.ErrorCount}} error(s) in schema {{.Schema}}: {{range .Errors}}{{.Message}}{{end}}",
+			template:   "Found {{.ErrorCount}} error(s) in schema {{.SchemaFile}}: {{range .Errors}}{{.Message}}{{end}}",
 			expectedContains: []string{"Found 1 error(s)", "user.schema.json", "type error"},
 		},
 		{
@@ -141,7 +141,7 @@ func TestFormatValidationErrorComplexScenarios(t *testing.T) {
 			err:        &MockValidationError{message: "missing field"},
 			schemaPath: "schema.json",
 			document:   "{}",
-			template:   "{{range .Errors}}Path {{.Path}}: {{.Message}}{{end}}",
+			template:   "{{range .Errors}}Path {{.DocumentPath}}: {{.Message}}{{end}}",
 			expectedContains: []string{"Path :", "missing field"},
 		},
 		{
@@ -218,25 +218,25 @@ func TestGetCommonTemplate(t *testing.T) {
 			name:         "detailed template",
 			templateName: "detailed",
 			expectFound:  true,
-			expectedTemplate: "{{.ErrorCount}} validation error(s) found:\n{{range $i, $e := .Errors}}{{add $i 1}}. {{.Message}} at {{.Path}}\n{{end}}",
+			expectedTemplate: "{{.ErrorCount}} validation error(s) found:\n{{range $i, $e := .Errors}}{{add $i 1}}. {{.Message}} at {{.DocumentPath}}\n{{end}}",
 		},
 		{
 			name:         "with_path template",
 			templateName: "with_path",
 			expectFound:  true,
-			expectedTemplate: "{{range .Errors}}{{.Path}}: {{.Message}}\n{{end}}",
+			expectedTemplate: "{{range .Errors}}{{.DocumentPath}}: {{.Message}}\n{{end}}",
 		},
 		{
 			name:         "with_schema template",
 			templateName: "with_schema",
 			expectFound:  true,
-			expectedTemplate: "Schema {{.Schema}} validation failed:\n{{.FullMessage}}",
+			expectedTemplate: "Schema {{.SchemaFile}} validation failed:\n{{.FullMessage}}",
 		},
 		{
 			name:         "verbose template",
 			templateName: "verbose",
 			expectFound:  true,
-			expectedTemplate: "Validation Results:\nSchema: {{.Schema}}\nErrors: {{.ErrorCount}}\nFull Message: {{.FullMessage}}\n\nIndividual Errors:\n{{range $i, $e := .Errors}}Error {{add $i 1}}:\n  Path: {{.Path}}\n  Schema Path: {{.SchemaPath}}\n  Message: {{.Message}}{{if .Value}}\n  Value: {{.Value}}{{end}}\n\n{{end}}",
+			expectedTemplate: "Validation Results:\nSchema: {{.SchemaFile}}\nErrors: {{.ErrorCount}}\nFull Message: {{.FullMessage}}\n\nIndividual Errors:\n{{range $i, $e := .Errors}}Error {{add $i 1}}:\n  Document Path: {{.DocumentPath}}\n  Schema Path: {{.SchemaPath}}\n  Message: {{.Message}}{{if .Value}}\n  Value: {{.Value}}{{end}}\n\n{{end}}",
 		},
 		{
 			name:         "non-existent template",
@@ -270,10 +270,10 @@ func TestGetCommonTemplate(t *testing.T) {
 func TestValidationErrorSorting(t *testing.T) {
 	// Test that validation errors are consistently ordered
 	unsortedErrors := []ValidationErrorDetail{
-		{Message: "error at /z", Path: "/z"},
-		{Message: "error at /a", Path: "/a"},  
-		{Message: "second error at /a", Path: "/a"},
-		{Message: "error at /b", Path: "/b"},
+		{Message: "error at /z", DocumentPath: "/z"},
+		{Message: "error at /a", DocumentPath: "/a"},  
+		{Message: "second error at /a", DocumentPath: "/a"},
+		{Message: "error at /b", DocumentPath: "/b"},
 	}
 	
 	// Sort using our function
@@ -281,14 +281,14 @@ func TestValidationErrorSorting(t *testing.T) {
 	
 	// Verify the order
 	expected := []ValidationErrorDetail{
-		{Message: "error at /a", Path: "/a"},
-		{Message: "second error at /a", Path: "/a"},
-		{Message: "error at /b", Path: "/b"},
-		{Message: "error at /z", Path: "/z"},
+		{Message: "error at /a", DocumentPath: "/a"},
+		{Message: "second error at /a", DocumentPath: "/a"},
+		{Message: "error at /b", DocumentPath: "/b"},
+		{Message: "error at /z", DocumentPath: "/z"},
 	}
 	
 	for i, err := range unsortedErrors {
-		if err.Path != expected[i].Path || err.Message != expected[i].Message {
+		if err.DocumentPath != expected[i].DocumentPath || err.Message != expected[i].Message {
 			t.Errorf("Expected error %d to be %+v, got %+v", i, expected[i], err)
 		}
 	}
@@ -328,12 +328,12 @@ func TestFormatValidationErrorTemplateEdgeCases(t *testing.T) {
 		},
 		{
 			name:     "template with range but no Errors",
-			template: "{{range .Errors}}{{.Path}}{{end}}",
+			template: "{{range .Errors}}{{.DocumentPath}}{{end}}",
 			wantErr:  false,
 		},
 		{
 			name:     "template accessing nested fields",
-			template: "{{range .Errors}}{{.Path}}: {{.Message}} ({{.SchemaPath}}){{end}}",
+			template: "{{range .Errors}}{{.DocumentPath}}: {{.Message}} ({{.SchemaPath}}){{end}}",
 			wantErr:  false,
 		},
 		{
@@ -528,9 +528,9 @@ func TestGenerateSortedFullMessage(t *testing.T) {
 func TestSortValidationErrorsSecondarySort(t *testing.T) {
 	// Test secondary sort by message when paths are the same
 	errors := []ValidationErrorDetail{
-		{Message: "error z", Path: "/same"},
-		{Message: "error a", Path: "/same"},
-		{Message: "error m", Path: "/same"},
+		{Message: "error z", DocumentPath: "/same"},
+		{Message: "error a", DocumentPath: "/same"},
+		{Message: "error m", DocumentPath: "/same"},
 	}
 	
 	sortValidationErrors(errors)

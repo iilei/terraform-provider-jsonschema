@@ -158,7 +158,7 @@ func TestValidationErrorTemplateIntegration(t *testing.T) {
 				}
 			}`,
 			document: `{"port": "8080"}`, // Wrong type - string instead of integer
-			errorTemplate: "Schema: {{.Schema}} | Error: {{.FullMessage}} | Document: {{.Document}}",
+			errorTemplate: "Schema: {{.SchemaFile}} | Error: {{.FullMessage}} | Document: {{.Document}}",
 			expectedError: "Schema: test://schema.json | Error: jsonschema validation failed with 'test://schema.json#'\n- at '/port': got string, want integer | Document: {\"port\": \"8080\"}",
 			version: "draft/2020-12",
 		},
@@ -170,7 +170,7 @@ func TestValidationErrorTemplateIntegration(t *testing.T) {
 				"minItems": 2
 			}`,
 			document: `["single"]`, // Array too short
-			errorTemplate: "Validation failed in {{.Schema}}: {{.FullMessage}}",
+			errorTemplate: "Validation failed in {{.SchemaFile}}: {{.FullMessage}}",
 			expectedError: "Validation failed in test://schema.json: jsonschema validation failed with 'test://schema.json#'\n- at '': minItems: got 1, want 2",
 			version: "draft-07",
 		},
@@ -184,7 +184,7 @@ func TestValidationErrorTemplateIntegration(t *testing.T) {
 				}
 			}`,
 			document: `{"version": "invalid-version"}`, // Invalid version format
-			errorTemplate: "::error file={{.Schema}}::{{.FullMessage}}",
+			errorTemplate: "::error file={{.SchemaFile}}::{{.FullMessage}}",
 			expectedError: "::error file=test://schema.json::jsonschema validation failed with 'test://schema.json#'\n- at '/version': 'invalid-version' does not match pattern '^v[0-9]+\\\\.[0-9]+\\\\.[0-9]+$'",
 			version: "draft-06",
 		},

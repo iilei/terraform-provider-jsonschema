@@ -13,15 +13,15 @@ import (
 
 // ValidationErrorDetail represents a single validation error with rich context
 type ValidationErrorDetail struct {
-	Message    string `json:"message"`    // Human-readable error message
-	Path       string `json:"path"`       // JSON path where error occurred  
-	SchemaPath string `json:"schemaPath"` // Path in the schema where validation failed
-	Value      string `json:"value"`      // The actual value that failed validation (if available)
+	Message      string `json:"message"`      // Human-readable error message
+	DocumentPath string `json:"documentPath"` // JSON Pointer to location in document where error occurred
+	SchemaPath   string `json:"schemaPath"`   // JSON Pointer to schema constraint that failed
+	Value        string `json:"value"`        // The actual value that failed validation (if available)
 }
 
 // ErrorContext holds data available for error message templating
 type ErrorContext struct {
-	Schema       string                  `json:"schema"`       // Path to the schema file
+	SchemaFile   string                  `json:"schemaFile"`   // Path to the schema file
 	Document     string                  `json:"document"`     // The document content (truncated if too long)
 	Errors       []ValidationErrorDetail `json:"errors"`       // Individual validation errors with details
 	ErrorCount   int                     `json:"errorCount"`   // Number of individual errors
@@ -53,15 +53,15 @@ func FormatValidationError(err error, schemaPath, document, errorTemplate string
 	} else {
 		// For non-validation errors, create a single error detail
 		errors = []ValidationErrorDetail{{
-			Message: err.Error(),
-			Path:    "",
+			Message:      err.Error(),
+			DocumentPath: "",
 		}}
 		fullMessage = err.Error()
 	}
 
 	// Create clean template context
 	ctx := ErrorContext{
-		Schema:      schemaPath,
+		SchemaFile:  schemaPath,
 		Document:    truncateString(document, 500),
 		Errors:      errors,
 		ErrorCount:  len(errors),
@@ -88,12 +88,12 @@ func FormatValidationError(err error, schemaPath, document, errorTemplate string
 
 // Common error message templates that users can reference
 var CommonErrorTemplates = map[string]string{
-	"basic": "{{range .Errors}}{{.Message}}\n{{end}}",
-	"detailed": "{{.ErrorCount}} validation error(s) found:\n{{range $i, $e := .Errors}}{{add $i 1}}. {{.Message}} at {{.Path}}\n{{end}}",
-	"simple": "{{.FullMessage}}",
-	"with_path": "{{range .Errors}}{{.Path}}: {{.Message}}\n{{end}}",
-	"with_schema": "Schema {{.Schema}} validation failed:\n{{.FullMessage}}",
-	"verbose": "Validation Results:\nSchema: {{.Schema}}\nErrors: {{.ErrorCount}}\nFull Message: {{.FullMessage}}\n\nIndividual Errors:\n{{range $i, $e := .Errors}}Error {{add $i 1}}:\n  Path: {{.Path}}\n  Schema Path: {{.SchemaPath}}\n  Message: {{.Message}}{{if .Value}}\n  Value: {{.Value}}{{end}}\n\n{{end}}",
+	"basic":       "{{range .Errors}}{{.Message}}\n{{end}}",
+	"detailed":    "{{.ErrorCount}} validation error(s) found:\n{{range $i, $e := .Errors}}{{add $i 1}}. {{.Message}} at {{.DocumentPath}}\n{{end}}",
+	"simple":      "{{.FullMessage}}",
+	"with_path":   "{{range .Errors}}{{.DocumentPath}}: {{.Message}}\n{{end}}",
+	"with_schema": "Schema {{.SchemaFile}} validation failed:\n{{.FullMessage}}",
+	"verbose":     "Validation Results:\nSchema: {{.SchemaFile}}\nErrors: {{.ErrorCount}}\nFull Message: {{.FullMessage}}\n\nIndividual Errors:\n{{range $i, $e := .Errors}}Error {{add $i 1}}:\n  Document Path: {{.DocumentPath}}\n  Schema Path: {{.SchemaPath}}\n  Message: {{.Message}}{{if .Value}}\n  Value: {{.Value}}{{end}}\n\n{{end}}",
 }
 
 // GetCommonTemplate returns a predefined error template by name
@@ -111,10 +111,10 @@ func generateSortedFullMessage(err *jsonschema.ValidationError, sortedErrors []V
 	var errorLines []string
 	for _, detail := range sortedErrors {
 		// Extract just the validation message part (remove path if present)
-		message := extractCleanMessage(detail.Message, detail.Path)
+		message := extractCleanMessage(detail.Message, detail.DocumentPath)
 		
 		// Use path as-is - per RFC 6901, "" (empty string) is root, not "/"
-		displayPath := detail.Path
+		displayPath := detail.DocumentPath
 		
 		errorLine := fmt.Sprintf("- at '%s': %s", displayPath, message)
 		errorLines = append(errorLines, errorLine)
@@ -157,10 +157,10 @@ func extractValidationErrors(err *jsonschema.ValidationError, documentData inter
 	
 	// If no child causes, this is a leaf error - use it directly
 	detail := ValidationErrorDetail{
-		Message:    err.Error(),
-		Path:       formatInstanceLocation(err.InstanceLocation),
-		SchemaPath: err.SchemaURL,
-		Value:      extractValueAtPath(documentData, err.InstanceLocation),
+		Message:      err.Error(),
+		DocumentPath: formatInstanceLocation(err.InstanceLocation),
+		SchemaPath:   err.SchemaURL,
+		Value:        extractValueAtPath(documentData, err.InstanceLocation),
 	}
 	
 	errors = append(errors, detail)
@@ -213,13 +213,13 @@ func extractValueAtPath(data interface{}, path []string) string {
 }
 
 // sortValidationErrors sorts validation errors for consistent ordering
-// Primary sort: by Path (field name)
+// Primary sort: by DocumentPath (field name)
 // Secondary sort: by Message (for same field, different constraint violations)  
 func sortValidationErrors(errors []ValidationErrorDetail) {
 	sort.Slice(errors, func(i, j int) bool {
 		// First, sort by path
-		if errors[i].Path != errors[j].Path {
-			return errors[i].Path < errors[j].Path
+		if errors[i].DocumentPath != errors[j].DocumentPath {
+			return errors[i].DocumentPath < errors[j].DocumentPath
 		}
 		// If paths are the same, sort by message
 		return errors[i].Message < errors[j].Message

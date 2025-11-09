@@ -26,7 +26,7 @@ data "jsonschema_validator" "config_with_template" {
   
   error_message_template = <<-EOT
     Validation failed ({{.ErrorCount}} errors):
-    {{range .Errors}}• {{.Path}}: {{.Message}}
+    {{range .Errors}}• {{.DocumentPath}}: {{.Message}}
     {{end}}
   EOT
 }
