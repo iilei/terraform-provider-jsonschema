@@ -368,7 +368,7 @@ func TestExtractCleanMessage(t *testing.T) {
 		{
 			name:     "root path with empty string prefix",
 			message:  "at '': required property missing",
-			path:     "/",
+			path:     "", // Per RFC 6901, root is empty string
 			expected: "required property missing",
 		},
 		{
@@ -386,7 +386,7 @@ func TestExtractCleanMessage(t *testing.T) {
 		{
 			name:     "empty message",
 			message:  "",
-			path:     "/",
+			path:     "",
 			expected: "",
 		},
 		{
@@ -416,7 +416,7 @@ func TestFormatInstanceLocation(t *testing.T) {
 		{
 			name:     "empty location",
 			location: []string{},
-			expected: "/",
+			expected: "", // Per RFC 6901, empty string represents root
 		},
 		{
 			name:     "single element",

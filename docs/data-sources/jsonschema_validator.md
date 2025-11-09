@@ -228,7 +228,11 @@ Each error in `{{.Errors}}` contains:
 - `{{.SchemaPath}}` - JSON Pointer to the failing constraint in the schema (e.g., `schema.json#/properties/email/type`)
 - `{{.Value}}` - The actual value that failed validation (if available)
 
-**About JSON Pointer:** Path values use [JSON Pointer](https://datatracker.ietf.org/doc/html/rfc6901) syntax, the standard format used by JSON Schema validators. This format uses `/` as a separator and starts with `/` for the document root. Array indices are represented as numbers (e.g., `/items/0` for the first item).
+**About JSON Pointer:** Path values use [JSON Pointer](https://datatracker.ietf.org/doc/html/rfc6901) syntax, the standard format used by JSON Schema validators. Per RFC 6901:
+- Empty string `""` represents the whole document (root)
+- Paths starting with `/` reference nested fields (e.g., `/email` for top-level `email` field)
+- Array indices are numbers (e.g., `/items/0` for the first item)
+- Special characters: `~` encodes as `~0`, `/` encodes as `~1` within field names
 
 **Quick Reference:**
 

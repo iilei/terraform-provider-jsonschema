@@ -113,11 +113,8 @@ func generateSortedFullMessage(err *jsonschema.ValidationError, sortedErrors []V
 		// Extract just the validation message part (remove path if present)
 		message := extractCleanMessage(detail.Message, detail.Path)
 		
-		// Format the path for display (root path should be empty string, not '/')
+		// Use path as-is - per RFC 6901, "" (empty string) is root, not "/"
 		displayPath := detail.Path
-		if displayPath == "/" {
-			displayPath = ""
-		}
 		
 		errorLine := fmt.Sprintf("- at '%s': %s", displayPath, message)
 		errorLines = append(errorLines, errorLine)
@@ -132,13 +129,9 @@ func generateSortedFullMessage(err *jsonschema.ValidationError, sortedErrors []V
 
 // extractCleanMessage removes path information from error messages if present
 func extractCleanMessage(message, path string) string {
-	// Handle root path specifically - it appears as an empty string in paths but "at '': " in messages
-	var expectedPrefix string
-	if path == "/" {
-		expectedPrefix = "at '': "
-	} else {
-		expectedPrefix = fmt.Sprintf("at '%s': ", path)
-	}
+	// Per RFC 6901, root path is "" (empty string), not "/"
+	// Error messages from the library will use this format: "at '<path>': <message>"
+	expectedPrefix := fmt.Sprintf("at '%s': ", path)
 	
 	if strings.HasPrefix(message, expectedPrefix) {
 		return message[len(expectedPrefix):]
@@ -233,17 +226,19 @@ func sortValidationErrors(errors []ValidationErrorDetail) {
 	})
 }
 
-// formatInstanceLocation formats the instance location path
-// Handles both string keys (objects) and converts any other types to strings (array indices, etc.)
+// formatInstanceLocation formats the instance location path according to JSON Pointer (RFC 6901)
+// Per RFC 6901: empty string "" represents the root/whole document, not "/"
+// A path like "/" would represent a field with an empty string as its key
 func formatInstanceLocation(location []string) string {
 	if len(location) == 0 {
-		return "/"
+		return "" // Empty string for root, per RFC 6901
 	}
 	
-	// All elements in location are already strings in v6, but let's ensure proper formatting
+	// Build JSON Pointer: "/" + each reference token
+	// Note: RFC 6901 requires escaping "~" as "~0" and "/" as "~1" in tokens
+	// The jsonschema library should provide already-decoded tokens
 	var pathParts []string
 	for _, part := range location {
-		// Handle array indices and object keys uniformly
 		pathParts = append(pathParts, part)
 	}
 	
