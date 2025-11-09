@@ -179,7 +179,7 @@ Customize validation error messages using Go templates:
 | `{{.DocumentPath}}` | string | Per-error | JSON Pointer to error location in document | `"/port"` or `""` (root) |
 | `{{.SchemaPath}}` | string | Per-error | Full URI + JSON Pointer to schema constraint | `"file:///path/schema.json#/properties/port/type"` |
 | `{{.Message}}` | string | Per-error | Human-readable error description | `"expected integer, but got string"` |
-| `{{.Value}}` | string | Per-error | JSON representation of the invalid value | `"\"8080\""` or `"null"` |
+| `{{.Value}}` | string | Per-error | JSON representation of the invalid value | `"8080"` (string) or `123` (number) or `null` |
 
 **Scope Notes:**
 - **Global** variables are available at the top level of the template
