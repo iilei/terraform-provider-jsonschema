@@ -12,12 +12,13 @@ Features
 ========
 
 - **JSON5 Support**: Validate JSON and JSON5 documents with JSON5 schemas
-- **Schema Versions**: Draft 4, 6, 7, 2019-09, and 2020-12 support  
+- **Schema Versions**: Draft 4, 6, 7, 2019-09, and 2020-12 support
 - **External References**: Resolves ``$ref`` URIs including JSON5 files
 - **Reference Overrides**: Redirect remote ``$ref`` URLs to local files for offline validation
-- **Enhanced Templating**: Flexible error formatting with Go templates
-- **Individual Error Access**: Iterate over multiple validation errors
+- **Enhanced Error Templating**: Flexible error formatting with Go templates
 - **Deterministic Output**: Consistent JSON for stable Terraform state
+
+See the `full documentation <docs/index.md>`_ for detailed usage, advanced features, and examples.
 
 Installation
 ============
@@ -30,36 +31,25 @@ On |terraform|_ versions 0.13+ use:
     required_providers {
       jsonschema = {
         source  = "iilei/jsonschema"
-        version = "~> 0.4.1"  // Use the latest version
+        version = "~> 0.4.1"
       }
     }
   }
 
-For |terraform|_ versions 0.12 or lower use instructions: |terraform-install-plugin|_
+For |terraform|_ versions 0.12 or lower, see |terraform-install-plugin|_.
 
-Usage
-=====
-
-See |user-docs|_ for details.
-
-Provider Configuration
-======================
+Quick Start
+===========
 
 .. code-block:: terraform
 
   provider "jsonschema" {
-    # Optional: Custom error template (Go templating)
-    error_message_template = "{{.FullMessage}}"
+    schema_version = "draft/2020-12"  # Optional
   }
-
-Basic Example
-=============
-
-.. code-block:: terraform
 
   data "jsonschema_validator" "config" {
     document = file("${path.module}/config.json")
-    schema   = file("${path.module}/config.schema.json")
+    schema   = "${path.module}/config.schema.json"
   }
 
   # Use the validated document
@@ -67,54 +57,37 @@ Basic Example
     value = data.jsonschema_validator.config.validated
   }
 
-JSON5 Support Example
-====================
+Documentation
+=============
+
+- **Provider Documentation**: `docs/index.md <docs/index.md>`_
+- **Data Source Reference**: `docs/data-sources/jsonschema_validator.md <docs/data-sources/jsonschema_validator.md>`_
+- **Examples**: `examples/ <examples/>`_ directory
+- **Registry Documentation**: |user-docs|_
+
+Key Features
+============
+
+JSON5 Support
+-------------
 
 .. code-block:: terraform
 
-  # Validate a JSON5 document with JSON5 schema
   data "jsonschema_validator" "json5_config" {
     document = <<-EOT
       {
         // JSON5 comments supported
-        "name": "my-service",
-        "ports": [8080, 8081,], // Trailing commas allowed
-        "features": {
-          enabled: true,  // Unquoted keys supported
-        }
+        "ports": [8080, 8081,], // Trailing commas
+        config: { enabled: true } // Unquoted keys
       }
     EOT
     schema = "${path.module}/service.schema.json5"
   }
 
-Error Templating
-================
+Reference Overrides
+-------------------
 
-Customize error output with Go templates:
-
-.. code-block:: terraform
-
-  # Default format
-  provider "jsonschema" {
-    error_message_template = "{{.FullMessage}}"
-  }
-
-  # Individual error iteration
-  provider "jsonschema" {
-    error_message_template = "{{range .Errors}}{{.Path}}: {{.Message}}{{end}}"
-  }
-
-  # Custom format with metadata
-  data "jsonschema_validator" "config" {
-    document = file("config.json")  
-    schema   = file("config.schema.json")
-    error_message_template = "Found {{.ErrorCount}} errors:\n{{range .Errors}}- {{.Path}}: {{.Message}}\n{{end}}"
-  }
-
-Remote Schema References
-========================
-
-Redirect remote schema URLs to local files for offline validation:
+Redirect remote ``$ref`` URLs to local files for offline validation:
 
 .. code-block:: terraform
 
@@ -122,37 +95,36 @@ Redirect remote schema URLs to local files for offline validation:
     document = file("api-request.json")
     schema   = "${path.module}/schemas/api-request.schema.json"
     
-    # Map remote URLs to local files
     ref_overrides = {
-      "https://api.example.com/schemas/user.json" = "${path.module}/schemas/user.schema.json"
-      "https://api.example.com/schemas/product.json" = "${path.module}/schemas/product.schema.json"
+      "https://api.example.com/schemas/user.schema.json" = "${path.module}/schemas/user.schema.json"
     }
   }
 
-This enables:
+**Benefits:**
 
-- **Offline validation**: No internet connection required
-- **Air-gapped environments**: Works in restricted networks
-- **Version control**: Keep all schemas in your repository
-- **Deterministic builds**: Same inputs always produce same results
+- **Offline validation** - No internet connection required
+- **Air-gapped environments** - Works in restricted networks
+- **Deterministic builds** - Same inputs = same results
+- **No HTTP complexity** - No proxy settings, authentication, or TLS configuration needed
 
-Template Variables
-==================
+See `examples/ref_overrides/ <examples/ref_overrides/>`_ for a complete example.
 
-Available in ``error_message_template``:
+Error Templating
+----------------
 
-- ``{{.FullMessage}}`` - Complete validation error message
-- ``{{.ErrorCount}}`` - Number of validation errors  
-- ``{{.Errors}}`` - Array of individual validation errors
-- ``{{.Document}}`` - The validated document
-- ``{{.Schema}}`` - The schema used for validation
+Customize error output with Go templates:
 
-Each error in ``{{.Errors}}`` provides:
+.. code-block:: terraform
 
-- ``{{.Message}}`` - Error description
-- ``{{.Path}}`` - JSON path where error occurred
-- ``{{.SchemaPath}}`` - Schema path of the failing constraint
-- ``{{.Value}}`` - The invalid value
+  data "jsonschema_validator" "config" {
+    document = file("config.json")
+    schema   = "config.schema.json"
+    error_message_template = "{{range .Errors}}{{.Path}}: {{.Message}}\n{{end}}"
+  }
+
+Available template variables: ``{{.FullMessage}}``, ``{{.ErrorCount}}``, ``{{.Errors}}``, ``{{.Schema}}``, ``{{.Document}}``
+
+See the `full documentation <docs/index.md>`_ for advanced templating examples.
 
 Development
 ===========
@@ -162,7 +134,14 @@ Requirements: |go|_ 1.25+
 .. code-block:: bash
 
   # Run tests
-  TF_ACC=1 go test ./internal/provider -v
+  go test ./internal/provider/ -v
+  
+  # Run acceptance tests
+  TF_ACC=1 go test ./internal/provider/ -v
+  
+  # View coverage
+  go test ./internal/provider/ -coverprofile=coverage.out
+  go tool cover -html=coverage.out
 
 
 .. |terraform| replace:: Terraform

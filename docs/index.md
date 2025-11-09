@@ -4,13 +4,25 @@ Terraform provider for validating JSON and JSON5 documents using [JSON Schema](h
 
 ## Features
 
+### Core Capabilities
+
 - **JSON5 Support**: Parse and validate both JSON and JSON5 format documents and schemas
 - **Multiple Schema Versions**: Support for JSON Schema Draft 4, 6, 7, 2019-09, and 2020-12
+- **Consistent Output**: Deterministic JSON formatting for stable Terraform state
+
+### Schema References
+
 - **External Reference Resolution**: Resolves `$ref` URIs including JSON5 files relative to schema location
+- **Reference Overrides** (`ref_overrides`): Redirect remote `$ref` URLs to local files for:
+  - Offline validation (no internet required)
+  - Air-gapped environments
+  - Deterministic builds
+
+### Error Handling
+
 - **Enhanced Error Templating**: Go template system with individual error iteration capabilities
 - **Consistent Error Ordering**: Deterministic error ordering for reliable testing and CI/CD
-- **JSON5 External References**: Support for JSON5 files in `$ref` schema references
-- **Robust Validation**: Powered by `santhosh-tekuri/jsonschema/v6` for comprehensive validation
+- **Flexible Formatting**: CI/CD integration, structured logging, and custom formats
 
 ## Provider Configuration
 
@@ -68,6 +80,47 @@ data "jsonschema_validator" "json5_config" {
 ## Advanced Configuration
 
 ```hcl-terraform
+### Schema References
+
+```hcl-terraform
+# Schema references are resolved relative to schema file location
+# For example, if schema is at "/path/to/schemas/main.schema.json"
+# then "$ref": "./types.json" resolves to "/path/to/schemas/types.json"
+data "jsonschema_validator" "with_refs" {
+  document = file("document.json")
+  schema   = "${path.module}/schemas/main.schema.json"  # Contains $ref references
+}
+```
+
+### Reference Overrides (Offline Validation)
+
+Redirect remote `$ref` URLs to local files for offline validation:
+
+```hcl-terraform
+data "jsonschema_validator" "api_request" {
+  document = file("api-request.json")
+  schema   = "${path.module}/schemas/api-request.schema.json"
+  
+  # Map remote URLs to local files
+  ref_overrides = {
+    "https://api.example.com/schemas/user.schema.json"    = "${path.module}/schemas/user.schema.json"
+    "https://api.example.com/schemas/product.schema.json" = "${path.module}/schemas/product.schema.json"
+  }
+}
+```
+
+**Benefits:**
+- No internet connection required
+- Works in air-gapped/restricted networks  
+- Deterministic builds
+- No proxy settings, authentication, or TLS configuration needed
+- No external dependencies in CI/CD
+
+See the complete example in `examples/ref_overrides/` directory.
+
+### Schema Version Overrides
+
+```hcl-terraform
 # Override schema version per validation
 data "jsonschema_validator" "legacy_config" {
   document       = file("legacy-config.json")
@@ -88,16 +141,11 @@ data "jsonschema_validator" "individual_errors" {
   schema   = "complex.schema.json"
   error_message_template = "{{range .Errors}}{{.Path}}: {{.Message}}\n{{end}}"
 }
+```
 
-# Schema references are resolved relative to schema file location
-# For example, if schema is at "/path/to/schemas/main.schema.json"
-# then "$ref": "./types.json" resolves to "/path/to/schemas/types.json"
-data "jsonschema_validator" "with_refs" {
-  document = file("document.json")
-  schema   = "${path.module}/schemas/main.schema.json"  # Contains $ref references
-}
+### Multiple Schema Validations
 
-# Multiple schema validations with different versions
+```hcl-terraform
 data "jsonschema_validator" "api_validation" {
   document       = file("api-config.json")
   schema         = "${path.module}/schemas/openapi/config.schema.json"
