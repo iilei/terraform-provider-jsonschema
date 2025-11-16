@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/santhosh-tekuri/jsonschema/v6"
-
 	validator "github.com/iilei/terraform-provider-jsonschema/pkg/jsonschema"
+
+	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
 // Test the actual validation schema and compiler behavior
