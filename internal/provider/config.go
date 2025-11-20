@@ -10,13 +10,13 @@ import (
 type ProviderConfig struct {
 	// DefaultSchemaVersion specifies the JSON Schema version to use when not specified in the schema
 	DefaultSchemaVersion string
-	
+
 	// DefaultErrorTemplate is the default error message template
 	DefaultErrorTemplate string
-	
+
 	// DetailedErrors enables detailed structured error output
 	DetailedErrors bool
-	
+
 	// DefaultDraft is the default draft to use
 	DefaultDraft *jsonschema.Draft
 }
@@ -27,14 +27,14 @@ func NewProviderConfig(schemaVersion, errorTemplate string, detailedErrors bool)
 	if errorTemplate == "" {
 		errorTemplate = "{{.FullMessage}}"
 	}
-	
+
 	config := &ProviderConfig{
 		DefaultSchemaVersion: schemaVersion,
 		DefaultErrorTemplate: errorTemplate,
 		DetailedErrors:       detailedErrors,
 		DefaultDraft:         jsonschema.Draft2020, // Default to latest draft
 	}
-	
+
 	// Set draft based on schema version if provided
 	if schemaVersion != "" {
 		draft, err := GetDraftForVersion(schemaVersion)
@@ -43,7 +43,7 @@ func NewProviderConfig(schemaVersion, errorTemplate string, detailedErrors bool)
 		}
 		config.DefaultDraft = draft
 	}
-	
+
 	return config, nil
 }
 

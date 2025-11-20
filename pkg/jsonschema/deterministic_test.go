@@ -1,10 +1,10 @@
 package jsonschema
 
 import (
+	"bytes"
 	"encoding/json"
 	"strings"
 	"testing"
-
 )
 
 func TestMarshalDeterministic(t *testing.T) {
@@ -30,7 +30,7 @@ func TestMarshalDeterministic(t *testing.T) {
 		t.Fatalf("Second marshal failed: %v", err2)
 	}
 
-	if string(result1) != string(result2) {
+	if !bytes.Equal(result1, result2) {
 		t.Errorf("Non-deterministic results:\nFirst:  %s\nSecond: %s", result1, result2)
 	}
 
@@ -235,7 +235,7 @@ func TestMarshalDeterministicStringErrorHandling(t *testing.T) {
 	invalidData := map[string]interface{}{
 		"function": func() {},
 	}
-	
+
 	result, err := MarshalDeterministicString(invalidData)
 	if err == nil {
 		t.Errorf("expected error for invalid data, got result: %s", result)
@@ -251,7 +251,7 @@ func TestCompactDeterministicJSONErrorHandling(t *testing.T) {
 	invalidData := map[string]interface{}{
 		"function": func() {},
 	}
-	
+
 	result, err := CompactDeterministicJSON(invalidData)
 	if err == nil {
 		t.Errorf("expected error for invalid data, got result: %s", result)
@@ -273,7 +273,7 @@ func TestSortKeysReflectionEdgeCases(t *testing.T) {
 			desc:  "Empty map with string keys should be handled correctly",
 		},
 		{
-			name:  "empty_int_keyed_map", 
+			name:  "empty_int_keyed_map",
 			input: map[int]interface{}{},
 			desc:  "Empty map with non-string keys should return as-is",
 		},
@@ -300,7 +300,7 @@ func TestSortKeysReflectionEdgeCases(t *testing.T) {
 			name: "interface_containing_empty_interface",
 			input: func() interface{} {
 				var inner interface{} = nil
-				var outer interface{} = inner
+				var outer = inner
 				return outer
 			}(),
 			desc: "Interface containing nil interface should return nil",
@@ -309,7 +309,7 @@ func TestSortKeysReflectionEdgeCases(t *testing.T) {
 			name: "map_with_complex_key_type",
 			input: map[interface{}]interface{}{
 				"string_key": "value1",
-				42:           "value2", 
+				42:           "value2",
 			},
 			desc: "Map with interface{} keys (non-string) should return as-is",
 		},
@@ -332,7 +332,7 @@ func TestSortKeysReflectionEdgeCases(t *testing.T) {
 				}(),
 				func() interface{} {
 					var p *int = nil
-					return p  
+					return p
 				}(),
 				func() interface{} {
 					i := 42
@@ -392,9 +392,9 @@ func TestSortKeysReflectionEdgeCases(t *testing.T) {
 					t.Errorf("sortKeys panicked on %s: %v", tt.desc, r)
 				}
 			}()
-			
+
 			result := sortKeys(tt.input)
-			
+
 			// Ensure result can be marshaled to JSON (basic validation)
 			_, err := json.Marshal(result)
 			if err != nil {
@@ -403,7 +403,7 @@ func TestSortKeysReflectionEdgeCases(t *testing.T) {
 					t.Errorf("sortKeys result for %s could not be marshaled: %v", tt.desc, err)
 				}
 			}
-			
+
 			// For nil inputs, expect nil output
 			if tt.input == nil && result != nil {
 				t.Errorf("Expected nil result for nil input, got: %v", result)
@@ -436,7 +436,7 @@ func TestSortKeysMapKeyTypeValidation(t *testing.T) {
 			createMap: func() interface{} {
 				return map[int]interface{}{
 					3: "three",
-					1: "one", 
+					1: "one",
 					2: "two",
 				}
 			},
@@ -472,22 +472,22 @@ func TestSortKeysMapKeyTypeValidation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			input := tt.createMap()
 			result := sortKeys(input)
-			
+
 			// Convert both to JSON to compare
 			inputJSON, _ := json.Marshal(input)
 			resultJSON, _ := json.Marshal(result)
-			
+
 			if tt.shouldSort {
 				// For string-keyed maps, the result should be different (sorted)
 				// We can't easily test exact order without more complex logic,
 				// but we can ensure it's still valid JSON of the same structure
-				if string(inputJSON) == string(resultJSON) {
+				if bytes.Equal(inputJSON, resultJSON) {
 					// This could be OK if the input was already sorted
 					t.Logf("Input was already sorted or result unchanged for %s", tt.description)
 				}
 			} else {
 				// For non-string-keyed maps, result should be identical to input
-				if string(inputJSON) != string(resultJSON) {
+				if !bytes.Equal(inputJSON, resultJSON) {
 					t.Errorf("%s: expected unchanged result, input: %s, result: %s", tt.description, inputJSON, resultJSON)
 				}
 			}
@@ -502,15 +502,15 @@ func TestSortKeysCompleteReflectionCoverage(t *testing.T) {
 		input interface{}
 	}{
 		{
-			name: "empty_map_with_string_keys",
+			name:  "empty_map_with_string_keys",
 			input: make(map[string]interface{}),
 		},
 		{
-			name: "single_key_map",
+			name:  "single_key_map",
 			input: map[string]interface{}{"single": "value"},
 		},
 		{
-			name: "map_with_zero_length_after_filtering",
+			name:  "map_with_zero_length_after_filtering",
 			input: map[string]interface{}{},
 		},
 		{
@@ -534,17 +534,17 @@ func TestSortKeysCompleteReflectionCoverage(t *testing.T) {
 			},
 		},
 		{
-			name: "array_with_nil_elements",
+			name:  "array_with_nil_elements",
 			input: [3]interface{}{nil, nil, nil},
 		},
 		{
 			name: "map_value_type_edge_cases",
 			input: map[string]interface{}{
-				"nil_value":       nil,
-				"pointer_to_nil":  (*string)(nil),
-				"empty_slice":     []interface{}{},
-				"nil_slice":       []interface{}(nil),
-				"empty_map":       map[string]interface{}{},
+				"nil_value":      nil,
+				"pointer_to_nil": (*string)(nil),
+				"empty_slice":    []interface{}{},
+				"nil_slice":      []interface{}(nil),
+				"empty_map":      map[string]interface{}{},
 			},
 		},
 	}
@@ -559,7 +559,7 @@ func TestSortKeysCompleteReflectionCoverage(t *testing.T) {
 			}()
 
 			result := sortKeys(tt.input)
-			
+
 			// Verify the result is JSON-serializable (basic validation)
 			if result != nil {
 				_, err := json.Marshal(result)
@@ -623,19 +623,19 @@ func TestSortKeysInterfaceHandling(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := sortKeys(tt.input)
-			
+
 			// Marshal both to JSON for comparison
 			expectedJSON, err1 := json.Marshal(tt.expected)
 			resultJSON, err2 := json.Marshal(result)
-			
+
 			if err1 != nil {
 				t.Fatalf("Failed to marshal expected: %v", err1)
 			}
 			if err2 != nil {
 				t.Fatalf("Failed to marshal result: %v", err2)
 			}
-			
-			if string(expectedJSON) != string(resultJSON) {
+
+			if !bytes.Equal(expectedJSON, resultJSON) {
 				t.Errorf("Expected %s, got %s", string(expectedJSON), string(resultJSON))
 			}
 		})
@@ -690,7 +690,7 @@ func TestMarshalDeterministicComplexNesting(t *testing.T) {
 			if err != nil {
 				t.Errorf("MarshalDeterministic failed: %v", err)
 			}
-			
+
 			// Verify result is valid JSON
 			var unmarshaled interface{}
 			if err := json.Unmarshal(result, &unmarshaled); err != nil {
@@ -703,12 +703,12 @@ func TestMarshalDeterministicComplexNesting(t *testing.T) {
 func TestSortKeysInterfaceWithNonNilElem(t *testing.T) {
 	// Test interface case where IsNil() is false and has non-nil elem
 	// This covers the reflect.Interface case lines 61-65
-	
+
 	// Create a struct that will be passed as interface{}
 	type testStruct struct {
 		Value string
 	}
-	
+
 	testData := map[string]interface{}{
 		"z_key": func() interface{} {
 			// Return a non-nil interface containing a non-nil value
@@ -727,22 +727,22 @@ func TestSortKeysInterfaceWithNonNilElem(t *testing.T) {
 			return iface
 		}(),
 	}
-	
+
 	// This should recursively handle the interface types
 	result := sortKeys(testData)
-	
+
 	// Verify it's JSON-serializable
 	jsonBytes, err := json.Marshal(result)
 	if err != nil {
 		t.Errorf("Failed to marshal result: %v", err)
 	}
-	
+
 	// Verify the keys are sorted
 	var resultMap map[string]interface{}
 	if err := json.Unmarshal(jsonBytes, &resultMap); err != nil {
 		t.Errorf("Failed to unmarshal result: %v", err)
 	}
-	
+
 	// Keys should be in sorted order in the JSON
 	if !strings.Contains(string(jsonBytes), `"a_key"`) {
 		t.Error("Expected a_key in result")
@@ -752,31 +752,31 @@ func TestSortKeysWithJSONNull(t *testing.T) {
 	// Test that unmarshaled JSON with null value triggers the reflect.Interface case
 	// When JSON is unmarshaled, null becomes interface{} with nil value
 	jsonData := `null`
-	
+
 	var data interface{}
 	if err := json.Unmarshal([]byte(jsonData), &data); err != nil {
 		t.Fatalf("Failed to unmarshal JSON: %v", err)
 	}
-	
+
 	// data should be nil after unmarshaling "null"
 	if data != nil {
 		t.Errorf("Expected nil after unmarshaling null, got: %v", data)
 	}
-	
+
 	// sortKeys should handle the null value (which is interface{} containing nil)
 	result := sortKeys(data)
-	
+
 	// Result should be nil
 	if result != nil {
 		t.Errorf("Expected nil result, got: %v", result)
 	}
-	
+
 	// Marshal back to JSON
 	resultJSON, err := MarshalDeterministic(result)
 	if err != nil {
 		t.Fatalf("Failed to marshal result: %v", err)
 	}
-	
+
 	// Verify null is preserved
 	expected := `null`
 	if string(resultJSON) != expected {
@@ -787,7 +787,7 @@ func TestSortKeysWithJSONNull(t *testing.T) {
 func TestSortKeysInterfaceNonNilWithValue(t *testing.T) {
 	// Test the reflect.Interface case where IsNil() is false and contains a value
 	// This specifically tests the return sortKeys(v.Elem().Interface()) path
-	
+
 	// Create data with interface{} values wrapping different types
 	jsonData := `{
 		"z_string": "last",
@@ -798,22 +798,22 @@ func TestSortKeysInterfaceNonNilWithValue(t *testing.T) {
 			"a_nested": null
 		}
 	}`
-	
+
 	var data interface{}
 	if err := json.Unmarshal([]byte(jsonData), &data); err != nil {
 		t.Fatalf("Failed to unmarshal JSON: %v", err)
 	}
-	
+
 	// When unmarshaling, the values in the map are interface{} wrapping concrete types
 	// sortKeys needs to recursively handle these interfaces
 	result := sortKeys(data)
-	
+
 	// Marshal back to JSON
 	resultJSON, err := MarshalDeterministic(result)
 	if err != nil {
 		t.Fatalf("Failed to marshal result: %v", err)
 	}
-	
+
 	// Verify keys are sorted and values are preserved, including nested null
 	expected := `{"a_number":42,"m_bool":true,"nested":{"a_nested":null,"z_nested":"value"},"z_string":"last"}`
 	if string(resultJSON) != expected {

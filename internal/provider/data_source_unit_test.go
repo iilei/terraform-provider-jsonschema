@@ -58,16 +58,16 @@ func TestDataSourceJsonschemaValidatorRead(t *testing.T) {
 	}
 
 	tests := []struct {
-		name                   string
-		documentContent        string
-		documentFileName       string
-		schemaFile             string
-		schemaVersionOverride  string
-		errorMessageTemplate   string
-		providerConfig         *ProviderConfig
-		expectError            bool
-		errorContains          string
-		expectedValidJson      string
+		name                  string
+		documentContent       string
+		documentFileName      string
+		schemaFile            string
+		schemaVersionOverride string
+		errorMessageTemplate  string
+		providerConfig        *ProviderConfig
+		expectError           bool
+		errorContains         string
+		expectedValidJson     string
 	}{
 		{
 			name:             "valid document validation",
@@ -233,11 +233,11 @@ func TestDataSourceJsonschemaValidatorRead_InvalidProviderConfig(t *testing.T) {
 
 	// Pass invalid config type
 	err = dataSourceJsonschemaValidatorRead(resourceData, "invalid-config")
-	
+
 	if err == nil {
 		t.Errorf("expected error for invalid provider config")
 	}
-	
+
 	if !strings.Contains(err.Error(), "invalid provider configuration") {
 		t.Errorf("expected specific error message, got: %v", err)
 	}
@@ -273,7 +273,7 @@ func TestDataSourceJsonschemaValidatorRead_InvalidDocumentParsing(t *testing.T) 
 	}
 
 	err = dataSourceJsonschemaValidatorRead(resourceData, config)
-	
+
 	if err == nil || !strings.Contains(err.Error(), "failed to parse document") {
 		t.Errorf("expected 'failed to parse document' error, got: %v", err)
 	}
@@ -310,11 +310,11 @@ func TestDataSourceJsonschemaValidatorRead_InvalidSchemaVersion(t *testing.T) {
 	}
 
 	err = dataSourceJsonschemaValidatorRead(resourceData, config)
-	
+
 	if err == nil {
 		t.Errorf("expected error for invalid schema version")
 	}
-	
+
 	if !strings.Contains(err.Error(), "unsupported JSON Schema version") {
 		t.Errorf("expected specific error message, got: %v", err)
 	}
@@ -343,7 +343,7 @@ func TestDataSourceJsonschemaValidatorRead_MissingSchemaFile(t *testing.T) {
 	}
 
 	err = dataSourceJsonschemaValidatorRead(resourceData, config)
-	
+
 	if err == nil || !strings.Contains(err.Error(), "failed to parse schema file") {
 		t.Errorf("expected 'failed to parse schema file' error, got: %v", err)
 	}
@@ -378,7 +378,7 @@ func TestDataSourceJsonschemaValidatorRead_UnreadableSchemaFile(t *testing.T) {
 	}
 
 	err = dataSourceJsonschemaValidatorRead(resourceData, config)
-	
+
 	if err == nil || !strings.Contains(err.Error(), "failed to parse schema file") {
 		t.Errorf("expected 'failed to parse schema file' error, got: %v", err)
 	}
@@ -413,7 +413,7 @@ func TestDataSourceJsonschemaValidatorRead_InvalidSchemaFile(t *testing.T) {
 	}
 
 	err = dataSourceJsonschemaValidatorRead(resourceData, config)
-	
+
 	if err == nil || !strings.Contains(err.Error(), "failed to parse schema file") {
 		t.Errorf("expected 'failed to parse schema file' error, got: %v", err)
 	}
@@ -592,14 +592,14 @@ func TestDataSourceJsonschemaValidatorRead_RefOverrides(t *testing.T) {
 	}
 
 	tests := []struct {
-		name          string
+		name            string
 		documentContent string
-		refOverrides  map[string]interface{}
-		expectError   bool
-		errorContains string
+		refOverrides    map[string]interface{}
+		expectError     bool
+		errorContains   string
 	}{
 		{
-			name:     "valid ref override",
+			name:            "valid ref override",
 			documentContent: `{"user": {"name": "John", "email": "john@example.com"}}`,
 			refOverrides: map[string]interface{}{
 				"https://example.com/schemas/user.json": overrideSchemaFile,
@@ -607,7 +607,7 @@ func TestDataSourceJsonschemaValidatorRead_RefOverrides(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name:     "validation fails with override",
+			name:            "validation fails with override",
 			documentContent: `{"user": {"email": "john@example.com"}}`, // missing required "name"
 			refOverrides: map[string]interface{}{
 				"https://example.com/schemas/user.json": overrideSchemaFile,
@@ -616,7 +616,7 @@ func TestDataSourceJsonschemaValidatorRead_RefOverrides(t *testing.T) {
 			errorContains: "validation",
 		},
 		{
-			name:     "missing override file",
+			name:            "missing override file",
 			documentContent: `{"user": {"name": "John"}}`,
 			refOverrides: map[string]interface{}{
 				"https://example.com/schemas/user.json": "/nonexistent/file.json",
@@ -625,7 +625,7 @@ func TestDataSourceJsonschemaValidatorRead_RefOverrides(t *testing.T) {
 			errorContains: "ref_override: failed to parse local file",
 		},
 		{
-			name:     "invalid override file syntax",
+			name:            "invalid override file syntax",
 			documentContent: `{"user": {"name": "John"}}`,
 			refOverrides: map[string]interface{}{
 				"https://example.com/schemas/user.json": invalidOverrideFile,
@@ -634,7 +634,7 @@ func TestDataSourceJsonschemaValidatorRead_RefOverrides(t *testing.T) {
 			errorContains: "ref_override: failed to parse local file",
 		},
 		{
-			name:     "unreadable override file",
+			name:            "unreadable override file",
 			documentContent: `{"user": {"name": "John"}}`,
 			refOverrides: map[string]interface{}{
 				"https://example.com/schemas/user.json": unreadableOverrideFile,
@@ -643,7 +643,7 @@ func TestDataSourceJsonschemaValidatorRead_RefOverrides(t *testing.T) {
 			errorContains: "ref_override: failed to parse local file",
 		},
 		{
-			name:     "invalid schema structure in override",
+			name:            "invalid schema structure in override",
 			documentContent: `{"user": {"name": "John"}}`,
 			refOverrides: map[string]interface{}{
 				"https://example.com/schemas/user.json": invalidSchemaOverrideFile,
@@ -723,18 +723,18 @@ func TestDataSourceJsonschemaValidatorRead_SchemaCompilationErrors(t *testing.T)
 	}
 
 	tests := []struct {
-		name          string
-		schemaFile    string
+		name            string
+		schemaFile      string
 		documentContent string
-		expectError   bool
-		errorContains string
+		expectError     bool
+		errorContains   string
 	}{
 		{
-			name:          "invalid type in schema",
-			schemaFile:    invalidSchemaFile,
+			name:            "invalid type in schema",
+			schemaFile:      invalidSchemaFile,
 			documentContent: `{"name": "test"}`,
-			expectError:   true,
-			errorContains: "failed to compile schema",
+			expectError:     true,
+			errorContains:   "failed to compile schema",
 		},
 	}
 

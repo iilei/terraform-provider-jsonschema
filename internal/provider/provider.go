@@ -27,7 +27,6 @@ func New(version string) func() *schema.Provider {
 					Default:     "{{.FullMessage}}",
 					Description: "Default error message template for validation failures. Can be overridden per data source. Available variables: {{.SchemaFile}}, {{.Document}}, {{.FullMessage}}, {{.Errors}}, {{.ErrorCount}}. Use {{range .Errors}} to iterate over individual errors.",
 				},
-
 			},
 			DataSourcesMap: map[string]*schema.Resource{
 				"jsonschema_validator": dataSourceJsonschemaValidator(),

@@ -191,10 +191,10 @@ func TestSchemaConfig_GetEffectiveErrorTemplate(t *testing.T) {
 
 func TestSchemaConfig_GetEffectiveForceFiletype(t *testing.T) {
 	tests := []struct {
-		name              string
-		configForceType   string
-		flagForceType     string
-		want              string
+		name            string
+		configForceType string
+		flagForceType   string
+		want            string
 	}{
 		{
 			name:            "flag takes precedence",
@@ -332,7 +332,7 @@ func TestSchemaConfig_ExpandDocumentGlobs(t *testing.T) {
 			wantErr:   false,
 		},
 		{
-			name:      "mixed glob and non-glob",
+			name: "mixed glob and non-glob",
 			documents: []string{
 				filepath.Join(tempDir, "data.json"),
 				filepath.Join(tempDir, "config.*.json"),

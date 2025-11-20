@@ -21,11 +21,11 @@ type ValidationErrorDetail struct {
 
 // ErrorContext holds data available for error message templating
 type ErrorContext struct {
-	SchemaFile   string                  `json:"schemaFile"`   // Path to the schema file
-	Document     string                  `json:"document"`     // The document content (truncated if too long)
-	Errors       []ValidationErrorDetail `json:"errors"`       // Individual validation errors with details
-	ErrorCount   int                     `json:"errorCount"`   // Number of individual errors
-	FullMessage  string                  `json:"fullMessage"`  // Complete formatted error message from jsonschema
+	SchemaFile  string                  `json:"schemaFile"`  // Path to the schema file
+	Document    string                  `json:"document"`    // The document content (truncated if too long)
+	Errors      []ValidationErrorDetail `json:"errors"`      // Individual validation errors with details
+	ErrorCount  int                     `json:"errorCount"`  // Number of individual errors
+	FullMessage string                  `json:"fullMessage"` // Complete formatted error message from jsonschema
 }
 
 // FormatValidationError creates a formatted error message using the provided template
@@ -36,7 +36,7 @@ func FormatValidationError(err error, schemaPath, document, errorTemplate string
 
 	var errors []ValidationErrorDetail
 	var fullMessage string
-	
+
 	if validationErr, ok := err.(*jsonschema.ValidationError); ok {
 		// Parse the document to extract actual values for errors
 		var documentData interface{}
@@ -46,7 +46,7 @@ func FormatValidationError(err error, schemaPath, document, errorTemplate string
 				documentData = data
 			}
 		}
-		
+
 		errors = extractValidationErrors(validationErr, documentData)
 		// Generate full message using sorted errors for consistency
 		fullMessage = generateSortedFullMessage(validationErr, errors)
@@ -72,7 +72,7 @@ func FormatValidationError(err error, schemaPath, document, errorTemplate string
 	tmpl := template.New("error").Funcs(template.FuncMap{
 		"add": func(a, b int) int { return a + b },
 	})
-	
+
 	parsed, err := tmpl.Parse(errorTemplate)
 	if err != nil {
 		return fmt.Errorf("template parsing failed: %v", err)
@@ -106,24 +106,24 @@ func GetCommonTemplate(name string) (string, bool) {
 func generateSortedFullMessage(err *jsonschema.ValidationError, sortedErrors []ValidationErrorDetail) string {
 	// Use the main error prefix from the original error
 	prefix := fmt.Sprintf("jsonschema validation failed with '%s'", err.SchemaURL)
-	
+
 	// Build the error list using our sorted errors
 	var errorLines []string
 	for _, detail := range sortedErrors {
 		// Extract just the validation message part (remove path if present)
 		message := extractCleanMessage(detail.Message, detail.DocumentPath)
-		
+
 		// Use path as-is - per RFC 6901, "" (empty string) is root, not "/"
 		displayPath := detail.DocumentPath
-		
+
 		errorLine := fmt.Sprintf("- at '%s': %s", displayPath, message)
 		errorLines = append(errorLines, errorLine)
 	}
-	
+
 	if len(errorLines) > 0 {
 		return prefix + "\n" + strings.Join(errorLines, "\n")
 	}
-	
+
 	return prefix
 }
 
@@ -132,11 +132,11 @@ func extractCleanMessage(message, path string) string {
 	// Per RFC 6901, root path is "" (empty string), not "/"
 	// Error messages from the library will use this format: "at '<path>': <message>"
 	expectedPrefix := fmt.Sprintf("at '%s': ", path)
-	
+
 	if strings.HasPrefix(message, expectedPrefix) {
 		return message[len(expectedPrefix):]
 	}
-	
+
 	// If no path prefix found, return message as-is
 	return message
 }
@@ -144,7 +144,7 @@ func extractCleanMessage(message, path string) string {
 // extractValidationErrors recursively extracts all validation errors from the error tree
 func extractValidationErrors(err *jsonschema.ValidationError, documentData interface{}) []ValidationErrorDetail {
 	var errors []ValidationErrorDetail
-	
+
 	// If there are child causes, extract them individually (they contain the specific errors)
 	if len(err.Causes) > 0 {
 		for _, child := range err.Causes {
@@ -154,7 +154,7 @@ func extractValidationErrors(err *jsonschema.ValidationError, documentData inter
 		sortValidationErrors(errors)
 		return errors
 	}
-	
+
 	// If no child causes, this is a leaf error - use it directly
 	detail := ValidationErrorDetail{
 		Message:      err.Error(),
@@ -162,7 +162,7 @@ func extractValidationErrors(err *jsonschema.ValidationError, documentData inter
 		SchemaPath:   err.SchemaURL,
 		Value:        extractValueAtPath(documentData, err.InstanceLocation),
 	}
-	
+
 	errors = append(errors, detail)
 	return errors
 }
@@ -180,7 +180,7 @@ func extractValueAtPath(data interface{}, path []string) string {
 		}
 		return ""
 	}
-	
+
 	// Navigate to the value at the path
 	current := data
 	for _, key := range path {
@@ -203,18 +203,18 @@ func extractValueAtPath(data interface{}, path []string) string {
 			return "" // Can't navigate further
 		}
 	}
-	
+
 	// Serialize the value to JSON
 	if jsonBytes, err := json.Marshal(current); err == nil {
 		return string(jsonBytes)
 	}
-	
+
 	return ""
 }
 
 // sortValidationErrors sorts validation errors for consistent ordering
 // Primary sort: by DocumentPath (field name)
-// Secondary sort: by Message (for same field, different constraint violations)  
+// Secondary sort: by Message (for same field, different constraint violations)
 func sortValidationErrors(errors []ValidationErrorDetail) {
 	sort.Slice(errors, func(i, j int) bool {
 		// First, sort by path
@@ -233,15 +233,13 @@ func formatInstanceLocation(location []string) string {
 	if len(location) == 0 {
 		return "" // Empty string for root, per RFC 6901
 	}
-	
+
 	// Build JSON Pointer: "/" + each reference token
 	// Note: RFC 6901 requires escaping "~" as "~0" and "/" as "~1" in tokens
 	// The jsonschema library should provide already-decoded tokens
 	var pathParts []string
-	for _, part := range location {
-		pathParts = append(pathParts, part)
-	}
-	
+	pathParts = append(pathParts, location...)
+
 	return "/" + strings.Join(pathParts, "/")
 }
 

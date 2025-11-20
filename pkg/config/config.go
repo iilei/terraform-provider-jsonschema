@@ -119,20 +119,20 @@ func (s *SchemaConfig) GetEffectiveForceFiletype(flagValue string) string {
 // Later sources override earlier ones (command-line > config file > defaults)
 func MergeRefOverrides(sources ...map[string]string) map[string]string {
 	result := make(map[string]string)
-	
+
 	for _, source := range sources {
 		for key, value := range source {
 			result[key] = value
 		}
 	}
-	
+
 	return result
 }
 
 // ExpandDocumentGlobs expands glob patterns in document paths
 func (s *SchemaConfig) ExpandDocumentGlobs() ([]string, error) {
 	var expanded []string
-	
+
 	for _, pattern := range s.Documents {
 		// Check if pattern contains glob characters
 		if !containsGlobChars(pattern) {
@@ -140,22 +140,22 @@ func (s *SchemaConfig) ExpandDocumentGlobs() ([]string, error) {
 			expanded = append(expanded, pattern)
 			continue
 		}
-		
+
 		// Expand glob pattern
 		matches, err := filepath.Glob(pattern)
 		if err != nil {
 			return nil, fmt.Errorf("invalid glob pattern %q: %w", pattern, err)
 		}
-		
+
 		if len(matches) == 0 {
 			// No matches found - this might be intentional (e.g., no files yet)
 			// Don't treat as error, just skip
 			continue
 		}
-		
+
 		expanded = append(expanded, matches...)
 	}
-	
+
 	return expanded, nil
 }
 
