@@ -256,7 +256,7 @@ func TestLoader_CustomEnvPrefix(t *testing.T) {
 
 	loader := NewLoader()
 	loader.SetEnvPrefix("MY_APP_")
-	
+
 	cfg, err := loader.Load(nil)
 	if err != nil {
 		t.Fatalf("Load() failed: %v", err)
@@ -265,23 +265,23 @@ func TestLoader_CustomEnvPrefix(t *testing.T) {
 	if cfg.SchemaVersion != "draft/2020-12" {
 		t.Errorf("schema_version = %q, want %q", cfg.SchemaVersion, "draft/2020-12")
 	}
-	
+
 	if cfg.ErrorTemplate != "Custom: {{.FullMessage}}" {
 		t.Errorf("error_template = %q, want %q", cfg.ErrorTemplate, "Custom: {{.FullMessage}}")
 	}
-	
+
 	// Verify default prefix doesn't work
 	os.Setenv("JSONSCHEMA_VALIDATOR_SCHEMA_VERSION", "draft/2019-09")
 	defer os.Unsetenv("JSONSCHEMA_VALIDATOR_SCHEMA_VERSION")
-	
+
 	loader2 := NewLoader()
 	loader2.SetEnvPrefix("MY_APP_")
-	
+
 	cfg2, err := loader2.Load(nil)
 	if err != nil {
 		t.Fatalf("Load() failed: %v", err)
 	}
-	
+
 	// Should still use MY_APP_ prefix, not JSONSCHEMA_VALIDATOR_
 	if cfg2.SchemaVersion != "draft/2020-12" {
 		t.Errorf("schema_version = %q, want %q (should ignore JSONSCHEMA_VALIDATOR_ prefix)", cfg2.SchemaVersion, "draft/2020-12")
@@ -295,7 +295,7 @@ func TestLoader_LoadFlags(t *testing.T) {
 	flags.Parse([]string{"--schema.version", "draft/2019-09"})
 
 	loader := NewLoader()
-	
+
 	// Load flags using posflag provider
 	if err := loader.loadFlags(flags); err != nil {
 		t.Fatalf("Load flags failed: %v", err)
@@ -310,7 +310,7 @@ func TestLoader_LoadFlags(t *testing.T) {
 	if *schemaVersion != "draft/2019-09" {
 		t.Errorf("flag value = %q, want %q", *schemaVersion, "draft/2019-09")
 	}
-	
+
 	// Note: Flag to config field mapping happens in CLI main.go
 	// This test verifies the flag loading mechanism works
 }

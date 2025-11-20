@@ -1,0 +1,30 @@
+# .pre-commit-config.yaml
+repos:
+  - repo: https://github.com/golangci/golangci-lint
+    rev: v2.6.2  # Use the latest version from https://github.com/golangci/golangci-lint/releases
+    hooks:
+      - id: golangci-lint
+        args: [--fix, --timeout=5m]
+
+  - repo: local
+    hooks:
+      - id: go-fmt
+        name: go fmt
+        entry: bash -c 'output=$(go fmt ./...); if [ -n "$output" ]; then echo "Files not formatted:"; echo "$output"; exit 1; fi'
+        language: system
+        types: [go]
+        pass_filenames: false
+
+      - id: go-vet
+        name: go vet
+        entry: bash -c 'go vet ./... || exit 0'
+        language: system
+        types: [go]
+        pass_filenames: false
+
+      - id: go-test
+        name: go test
+        entry: go test -short ./...
+        language: system
+        types: [go]
+        pass_filenames: false

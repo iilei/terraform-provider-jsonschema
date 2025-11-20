@@ -190,8 +190,9 @@ func (l *Loader) loadPyprojectTOML() error {
 // Environment variables use SCREAMING_SNAKE_CASE (no camelCase!)
 // Prefixed with the configured prefix (default: JSONSCHEMA_VALIDATOR_)
 // Examples (with default prefix):
-//   JSONSCHEMA_VALIDATOR_SCHEMA_VERSION=draft/2020-12
-//   JSONSCHEMA_VALIDATOR_ERROR_TEMPLATE="..."
+//
+//	JSONSCHEMA_VALIDATOR_SCHEMA_VERSION=draft/2020-12
+//	JSONSCHEMA_VALIDATOR_ERROR_TEMPLATE="..."
 func (l *Loader) loadEnvVars() error {
 	return l.k.Load(env.Provider(l.envPrefix, ".", func(s string) string {
 		// Convert JSONSCHEMA_VALIDATOR_SCHEMA_VERSION to schema_version

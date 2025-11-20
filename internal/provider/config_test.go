@@ -7,8 +7,8 @@ import (
 
 func TestNewProviderConfig(t *testing.T) {
 	tests := []struct {
-		name           string
-		schemaVersion  string
+		name          string
+		schemaVersion string
 		errorTemplate string
 		expectError   bool
 		errorContains string
@@ -107,7 +107,7 @@ func TestGetDraftForVersion(t *testing.T) {
 		{"draft/2019-09", false},
 		{"draft/2020-12", false},
 		{"invalid", true},
-		{"", true}, // empty should be invalid
+		{"", true},         // empty should be invalid
 		{"draft-05", true}, // non-existent version
 	}
 
@@ -171,7 +171,7 @@ func TestGetDraftForVersionURLFormats(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.description, func(t *testing.T) {
 			draft, err := GetDraftForVersion(tt.version)
-			
+
 			if tt.expectError {
 				if err == nil {
 					t.Errorf("expected error for %s, but got none", tt.description)

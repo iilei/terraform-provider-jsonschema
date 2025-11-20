@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"strings"
 	"testing"
-	
+
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
 func TestErrorMessageTemplating(t *testing.T) {
 	mockError := fmt.Errorf("required property 'name' missing")
-	
+
 	testCases := []struct {
 		name     string
 		template string
@@ -71,8 +71,12 @@ func TestErrorFormattingEdgeCases(t *testing.T) {
 	}
 
 	// Test all available variables
-	result3 := FormatValidationError(mockError, "test.schema.json", `{"test": true}`, 
-		"Error: {{.FullMessage}}, Schema: {{.SchemaFile}}, Count: {{.ErrorCount}}, Doc: {{.Document}}")
+	result3 := FormatValidationError(
+		mockError,
+		"test.schema.json",
+		`{"test": true}`,
+		"Error: {{.FullMessage}}, Schema: {{.SchemaFile}}, Count: {{.ErrorCount}}, Doc: {{.Document}}",
+	)
 	expected := `Error: validation error, Schema: test.schema.json, Count: 1, Doc: {"test": true}`
 	if result3.Error() != expected {
 		t.Errorf("Expected: %s\nGot: %s", expected, result3.Error())
@@ -105,38 +109,43 @@ func TestFormatValidationErrorComplexScenarios(t *testing.T) {
 			schemaPath: "/path/to/schema.json",
 			document:   `{"name": 123}`,
 			template:   "Error: {{.FullMessage}} | Schema: {{.SchemaFile}}",
-			expectedContains: []string{"Error:", "validation failed", "Schema:", "/path/to/schema.json"},
+			expectedContains: []string{
+				"Error:",
+				"validation failed",
+				"Schema:",
+				"/path/to/schema.json",
+			},
 		},
 		{
-			name:       "Template with error count",
-			err:        &MockValidationError{message: "type error", path: "/age"},
-			schemaPath: "user.schema.json",
-			document:   `{"age": "twenty"}`,
-			template:   "Found {{.ErrorCount}} error(s) in schema {{.SchemaFile}}: {{range .Errors}}{{.Message}}{{end}}",
+			name:             "Template with error count",
+			err:              &MockValidationError{message: "type error", path: "/age"},
+			schemaPath:       "user.schema.json",
+			document:         `{"age": "twenty"}`,
+			template:         "Found {{.ErrorCount}} error(s) in schema {{.SchemaFile}}: {{range .Errors}}{{.Message}}{{end}}",
 			expectedContains: []string{"Found 1 error(s)", "user.schema.json", "type error"},
 		},
 		{
-			name:       "Template with path iteration",
-			err:        &MockValidationError{message: "missing field"},
-			schemaPath: "schema.json",
-			document:   "{}",
-			template:   "{{range .Errors}}Path {{.DocumentPath}}: {{.Message}}{{end}}",
+			name:             "Template with path iteration",
+			err:              &MockValidationError{message: "missing field"},
+			schemaPath:       "schema.json",
+			document:         "{}",
+			template:         "{{range .Errors}}Path {{.DocumentPath}}: {{.Message}}{{end}}",
 			expectedContains: []string{"Path :", "missing field"},
 		},
 		{
-			name:       "Invalid Go template syntax",
-			err:        &MockValidationError{message: "test error"},
-			schemaPath: "test.json",
-			document:   "{}",
-			template:   "{{.Errors", // Missing closing braces
+			name:             "Invalid Go template syntax",
+			err:              &MockValidationError{message: "test error"},
+			schemaPath:       "test.json",
+			document:         "{}",
+			template:         "{{.Errors", // Missing closing braces
 			expectedContains: []string{"template parsing failed"},
 		},
 		{
-			name:       "Non-validation error",
-			err:        fmt.Errorf("generic error"),
-			schemaPath: "test.json",
-			document:   "{}",
-			template:   "Custom: {{.FullMessage}}",
+			name:             "Non-validation error",
+			err:              fmt.Errorf("generic error"),
+			schemaPath:       "test.json",
+			document:         "{}",
+			template:         "Custom: {{.FullMessage}}",
 			expectedContains: []string{"Custom:", "generic error"},
 		},
 	}
@@ -153,7 +162,11 @@ func TestFormatValidationErrorComplexScenarios(t *testing.T) {
 			errorMessage := result.Error()
 			for _, expected := range tt.expectedContains {
 				if !strings.Contains(errorMessage, expected) {
-					t.Errorf("expected error message to contain %q, got: %s", expected, errorMessage)
+					t.Errorf(
+						"expected error message to contain %q, got: %s",
+						expected,
+						errorMessage,
+					)
 				}
 			}
 		})
@@ -176,57 +189,57 @@ func TestNilErrorHandling(t *testing.T) {
 
 func TestGetCommonTemplate(t *testing.T) {
 	tests := []struct {
-		name       string
-		templateName string
-		expectFound bool
+		name             string
+		templateName     string
+		expectFound      bool
 		expectedTemplate string
 	}{
 		{
-			name:         "simple template",
-			templateName: "simple",
-			expectFound:  true,
+			name:             "simple template",
+			templateName:     "simple",
+			expectFound:      true,
 			expectedTemplate: "{{.FullMessage}}",
 		},
 		{
-			name:         "basic template",
-			templateName: "basic",
-			expectFound:  true,
+			name:             "basic template",
+			templateName:     "basic",
+			expectFound:      true,
 			expectedTemplate: "{{range .Errors}}{{.Message}}\n{{end}}",
 		},
 		{
-			name:         "detailed template",
-			templateName: "detailed",
-			expectFound:  true,
+			name:             "detailed template",
+			templateName:     "detailed",
+			expectFound:      true,
 			expectedTemplate: "{{.ErrorCount}} validation error(s) found:\n{{range $i, $e := .Errors}}{{add $i 1}}. {{.Message}} at {{.DocumentPath}}\n{{end}}",
 		},
 		{
-			name:         "with_path template",
-			templateName: "with_path",
-			expectFound:  true,
+			name:             "with_path template",
+			templateName:     "with_path",
+			expectFound:      true,
 			expectedTemplate: "{{range .Errors}}{{.DocumentPath}}: {{.Message}}\n{{end}}",
 		},
 		{
-			name:         "with_schema template",
-			templateName: "with_schema",
-			expectFound:  true,
+			name:             "with_schema template",
+			templateName:     "with_schema",
+			expectFound:      true,
 			expectedTemplate: "Schema {{.SchemaFile}} validation failed:\n{{.FullMessage}}",
 		},
 		{
-			name:         "verbose template",
-			templateName: "verbose",
-			expectFound:  true,
+			name:             "verbose template",
+			templateName:     "verbose",
+			expectFound:      true,
 			expectedTemplate: "Validation Results:\nSchema: {{.SchemaFile}}\nErrors: {{.ErrorCount}}\nFull Message: {{.FullMessage}}\n\nIndividual Errors:\n{{range $i, $e := .Errors}}Error {{add $i 1}}:\n  Document Path: {{.DocumentPath}}\n  Schema Path: {{.SchemaPath}}\n  Message: {{.Message}}{{if .Value}}\n  Value: {{.Value}}{{end}}\n\n{{end}}",
 		},
 		{
-			name:         "non-existent template",
-			templateName: "nonexistent",
-			expectFound:  false,
+			name:             "non-existent template",
+			templateName:     "nonexistent",
+			expectFound:      false,
 			expectedTemplate: "",
 		},
 		{
-			name:         "empty template name",
-			templateName: "",
-			expectFound:  false,
+			name:             "empty template name",
+			templateName:     "",
+			expectFound:      false,
 			expectedTemplate: "",
 		},
 	}
@@ -234,13 +247,17 @@ func TestGetCommonTemplate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			template, found := GetCommonTemplate(tt.templateName)
-			
+
 			if found != tt.expectFound {
 				t.Errorf("GetCommonTemplate() found = %v, expectFound = %v", found, tt.expectFound)
 			}
-			
+
 			if found && template != tt.expectedTemplate {
-				t.Errorf("GetCommonTemplate() template = %v, expectedTemplate = %v", template, tt.expectedTemplate)
+				t.Errorf(
+					"GetCommonTemplate() template = %v, expectedTemplate = %v",
+					template,
+					tt.expectedTemplate,
+				)
 			}
 		})
 	}
@@ -250,14 +267,14 @@ func TestValidationErrorSorting(t *testing.T) {
 	// Test that validation errors are consistently ordered
 	unsortedErrors := []ValidationErrorDetail{
 		{Message: "error at /z", DocumentPath: "/z"},
-		{Message: "error at /a", DocumentPath: "/a"},  
+		{Message: "error at /a", DocumentPath: "/a"},
 		{Message: "second error at /a", DocumentPath: "/a"},
 		{Message: "error at /b", DocumentPath: "/b"},
 	}
-	
+
 	// Sort using our function
 	sortValidationErrors(unsortedErrors)
-	
+
 	// Verify the order
 	expected := []ValidationErrorDetail{
 		{Message: "error at /a", DocumentPath: "/a"},
@@ -265,7 +282,7 @@ func TestValidationErrorSorting(t *testing.T) {
 		{Message: "error at /b", DocumentPath: "/b"},
 		{Message: "error at /z", DocumentPath: "/z"},
 	}
-	
+
 	for i, err := range unsortedErrors {
 		if err.DocumentPath != expected[i].DocumentPath || err.Message != expected[i].Message {
 			t.Errorf("Expected error %d to be %+v, got %+v", i, expected[i], err)
@@ -275,8 +292,15 @@ func TestValidationErrorSorting(t *testing.T) {
 
 func TestCommonErrorTemplatesExist(t *testing.T) {
 	// Test that all expected common templates exist
-	expectedTemplates := []string{"basic", "detailed", "simple", "with_path", "with_schema", "verbose"}
-	
+	expectedTemplates := []string{
+		"basic",
+		"detailed",
+		"simple",
+		"with_path",
+		"with_schema",
+		"verbose",
+	}
+
 	for _, templateName := range expectedTemplates {
 		t.Run("template_"+templateName, func(t *testing.T) {
 			template, found := GetCommonTemplate(templateName)
@@ -483,9 +507,9 @@ func TestGenerateSortedFullMessage(t *testing.T) {
 		expectedParts []string
 	}{
 		{
-			name:     "error with multiple parts",
-			errorMsg: "validation error",
-			template: "{{.FullMessage}}",
+			name:          "error with multiple parts",
+			errorMsg:      "validation error",
+			template:      "{{.FullMessage}}",
 			expectedParts: []string{"validation error"},
 		},
 	}
@@ -493,8 +517,13 @@ func TestGenerateSortedFullMessage(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockErr := fmt.Errorf("%s", tt.errorMsg)
-			result := FormatValidationError(mockErr, "test.schema.json", `{"test": "data"}`, tt.template)
-			
+			result := FormatValidationError(
+				mockErr,
+				"test.schema.json",
+				`{"test": "data"}`,
+				tt.template,
+			)
+
 			for _, part := range tt.expectedParts {
 				if !strings.Contains(result.Error(), part) {
 					t.Errorf("Expected result to contain %q, got %q", part, result.Error())
@@ -511,9 +540,9 @@ func TestSortValidationErrorsSecondarySort(t *testing.T) {
 		{Message: "error a", DocumentPath: "/same"},
 		{Message: "error m", DocumentPath: "/same"},
 	}
-	
+
 	sortValidationErrors(errors)
-	
+
 	// Verify they are sorted alphabetically by message
 	if errors[0].Message != "error a" {
 		t.Errorf("Expected first error to be 'error a', got %q", errors[0].Message)
@@ -530,14 +559,14 @@ func TestFormatValidationErrorWithLongDocument(t *testing.T) {
 	// Test document truncation in error context
 	longDocument := strings.Repeat("x", 1000)
 	mockErr := fmt.Errorf("validation error")
-	
+
 	result := FormatValidationError(mockErr, "test.json", longDocument, "Doc: {{.Document}}")
-	
+
 	// Verify the document was truncated
 	if !strings.Contains(result.Error(), "...") {
 		t.Error("Expected document to be truncated in error message")
 	}
-	
+
 	// Verify error message is not absurdly long
 	if len(result.Error()) > 600 {
 		t.Errorf("Error message too long: %d characters", len(result.Error()))
@@ -547,10 +576,10 @@ func TestFormatValidationErrorWithLongDocument(t *testing.T) {
 func TestFormatValidationErrorTemplateAddFunction(t *testing.T) {
 	// Test the template's add function
 	mockErr := fmt.Errorf("validation error")
-	
-	result := FormatValidationError(mockErr, "test.json", `{"test": "data"}`, 
+
+	result := FormatValidationError(mockErr, "test.json", `{"test": "data"}`,
 		"Error {{add 1 2}}: {{.FullMessage}}")
-	
+
 	if !strings.Contains(result.Error(), "Error 3:") {
 		t.Errorf("Expected add function to work, got: %s", result.Error())
 	}
@@ -559,7 +588,7 @@ func TestFormatValidationErrorTemplateAddFunction(t *testing.T) {
 func TestFormatValidationErrorEdgeCaseTemplates(t *testing.T) {
 	// Test various template edge cases
 	mockErr := fmt.Errorf("test error")
-	
+
 	tests := []struct {
 		name     string
 		template string
@@ -581,7 +610,7 @@ func TestFormatValidationErrorEdgeCaseTemplates(t *testing.T) {
 			expected: "Has errors",
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := FormatValidationError(mockErr, "test.json", `{}`, tt.template)
@@ -804,7 +833,7 @@ func TestExtractValueAtPath(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := extractValueAtPath(tt.data, tt.path)
-			
+
 			if tt.expected == "" && result != "" {
 				// Check if it's a truncation case
 				if !strings.Contains(result, "...") {
@@ -923,52 +952,52 @@ func TestValueFieldPopulationIntegration(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Load schema
 			compiler := jsonschema.NewCompiler()
-			
+
 			// Parse schema
 			var schemaData interface{}
 			if err := json.Unmarshal([]byte(tt.schema), &schemaData); err != nil {
 				t.Fatalf("Failed to parse schema: %v", err)
 			}
-			
+
 			if err := compiler.AddResource("test.schema.json", schemaData); err != nil {
 				t.Fatalf("Failed to add schema: %v", err)
 			}
-			
+
 			schema, err := compiler.Compile("test.schema.json")
 			if err != nil {
 				t.Fatalf("Failed to compile schema: %v", err)
 			}
-			
+
 			// Parse document
 			var doc interface{}
 			if err := json.Unmarshal([]byte(tt.document), &doc); err != nil {
 				t.Fatalf("Failed to parse document: %v", err)
 			}
-			
+
 			// Validate
 			err = schema.Validate(doc)
 			if err == nil {
 				t.Fatal("Expected validation error, got none")
 			}
-			
+
 			// Type assert to ValidationError
 			validationErr, ok := err.(*jsonschema.ValidationError)
 			if !ok {
 				t.Fatalf("Expected *jsonschema.ValidationError, got %T", err)
 			}
-			
+
 			// Extract errors
 			errors := extractValidationErrors(validationErr, doc)
-			
+
 			// Verify Value field is populated correctly
 			for _, valErr := range errors {
 				expectedValue, exists := tt.expectedValues[valErr.DocumentPath]
 				if !exists {
 					continue // Not checking this error
 				}
-				
+
 				if valErr.Value != expectedValue {
-					t.Errorf("Path %s: expected value %q, got %q", 
+					t.Errorf("Path %s: expected value %q, got %q",
 						valErr.DocumentPath, expectedValue, valErr.Value)
 				}
 			}

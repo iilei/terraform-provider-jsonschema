@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -90,7 +91,7 @@ func TestProviderConfigureFunction(t *testing.T) {
 		{
 			name: "valid configuration with all fields",
 			configData: map[string]interface{}{
-				"schema_version":        "draft-07",
+				"schema_version":         "draft-07",
 				"error_message_template": "Error in {schema}: {error}",
 			},
 			expectError: false,
@@ -98,7 +99,7 @@ func TestProviderConfigureFunction(t *testing.T) {
 		{
 			name: "valid configuration with defaults",
 			configData: map[string]interface{}{
-				"schema_version":        "draft/2020-12",
+				"schema_version":         "draft/2020-12",
 				"error_message_template": "{{range .Errors}}{{.Message}}{{end}}",
 			},
 			expectError: false,
@@ -106,7 +107,7 @@ func TestProviderConfigureFunction(t *testing.T) {
 		{
 			name: "invalid schema version",
 			configData: map[string]interface{}{
-				"schema_version":        "invalid-draft",
+				"schema_version":         "invalid-draft",
 				"error_message_template": "",
 			},
 			expectError:   true,
@@ -115,7 +116,7 @@ func TestProviderConfigureFunction(t *testing.T) {
 		{
 			name: "empty configuration (should use defaults)",
 			configData: map[string]interface{}{
-				"schema_version":        "",
+				"schema_version":         "",
 				"error_message_template": "",
 			},
 			expectError: false,
@@ -129,7 +130,7 @@ func TestProviderConfigureFunction(t *testing.T) {
 			resourceData := schema.TestResourceDataRaw(t, provider.Schema, tt.configData)
 
 			// Call providerConfigure
-			result, diags := providerConfigure(nil, resourceData)
+			result, diags := providerConfigure(context.Background(), resourceData)
 
 			if tt.expectError {
 				if !diags.HasError() {
@@ -172,7 +173,7 @@ func TestProviderConfigureFunction(t *testing.T) {
 			expectedSchemaVersion := tt.configData["schema_version"].(string)
 			// When schema_version is empty, it's stored as-is (empty string) in DefaultSchemaVersion
 			// The default draft is set to Draft2020 in the DefaultDraft field instead
-			
+
 			if config.DefaultSchemaVersion != expectedSchemaVersion {
 				t.Errorf("expected schema version %q, got %q", expectedSchemaVersion, config.DefaultSchemaVersion)
 			}
@@ -193,7 +194,7 @@ func TestProviderSchemaDefinition(t *testing.T) {
 
 	// Test that all expected schema fields exist
 	expectedFields := []string{"schema_version", "error_message_template"}
-	
+
 	for _, field := range expectedFields {
 		if _, exists := provider.Schema[field]; !exists {
 			t.Errorf("expected schema field %q not found", field)

@@ -1,0 +1,75 @@
+version: "2"
+
+linters:
+  default: none
+  enable:
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - unconvert
+  settings:
+    dupl:
+      threshold: 100
+    goconst:
+      min-len: 2
+      min-occurrences: 2
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - experimental
+        - opinionated
+        - performance
+        - style
+    gocyclo:
+      min-complexity: 15
+    govet:
+      enable-all: false
+      enable:
+        - atomic
+        - bools
+        - buildtag
+        - nilfunc
+        - printf
+    misspell:
+      locale: US
+    nolintlint:
+      allow-unused: false
+      require-explanation: true
+      require-specific: true
+  exclusions:
+    rules:
+      - path: '_test\.go'
+        linters:
+          - errcheck
+          - unparam
+        text: "always nil"
+      - path: 'cmd/'
+        linters:
+          - errcheck
+      - path: 'main\.go'
+        linters:
+          - staticcheck
+        text: "SA1019.*plugin.Debug"
+      - linters:
+          - staticcheck
+        text: "SA1019.*Read is deprecated"
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    gofmt:
+      simplify: false
+    goimports:
+      local-prefixes:
+        - github.com/iilei/terraform-provider-jsonschema
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+run:
+  timeout: 5m
+  go: '1.25'

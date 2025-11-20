@@ -6,10 +6,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/iilei/terraform-provider-jsonschema/pkg/config"
-	validator "github.com/iilei/terraform-provider-jsonschema/pkg/jsonschema"
 	"github.com/santhosh-tekuri/jsonschema/v6"
 	"github.com/spf13/pflag"
+
+	"github.com/iilei/terraform-provider-jsonschema/pkg/config"
+	validator "github.com/iilei/terraform-provider-jsonschema/pkg/jsonschema"
 )
 
 const (
@@ -30,16 +31,16 @@ func main() {
 func run() error {
 	// Define flags
 	var (
-		showVersion      bool
-		showHelp         bool
-		configFile       string
-		schemaPath       string
-		schemaVersion    string
-		errorTemplate    string
-		refOverrides     []string
-		documents        []string
-		envPrefix        string
-		forceFiletype    string
+		showVersion   bool
+		showHelp      bool
+		configFile    string
+		schemaPath    string
+		schemaVersion string
+		errorTemplate string
+		refOverrides  []string
+		documents     []string
+		envPrefix     string
+		forceFiletype string
 	)
 
 	pflag.BoolVarP(&showVersion, "version", "v", false, "Show version and exit")
@@ -112,7 +113,7 @@ For more information, see: https://github.com/iilei/terraform-provider-jsonschem
 
 	// Load configuration
 	loader := config.NewLoader()
-	
+
 	// Set custom environment prefix if provided
 	if envPrefix != "" {
 		// Ensure prefix ends with underscore
@@ -121,11 +122,11 @@ For more information, see: https://github.com/iilei/terraform-provider-jsonschem
 		}
 		loader.SetEnvPrefix(envPrefix)
 	}
-	
+
 	// Load from specific config file if provided
 	var cfg *config.Config
 	var err error
-	
+
 	if configFile != "" {
 		cfg, err = loader.LoadFromFile(configFile)
 		if err != nil {
@@ -274,13 +275,13 @@ func validateSchema(schemaConfig config.SchemaConfig, globalConfig *config.Confi
 func validateDocument(docPath string, schema *jsonschema.Schema, schemaConfig config.SchemaConfig, globalConfig *config.Config, flagForceFiletype string) error {
 	// Get effective force_filetype: command-line flag > config file > auto-detect
 	effectiveForceFiletype := schemaConfig.GetEffectiveForceFiletype(flagForceFiletype)
-	
+
 	// Parse document file with optional forced file type
 	fileType := validator.FileType(effectiveForceFiletype)
 	if fileType == "" {
 		fileType = validator.FileTypeAuto
 	}
-	
+
 	docData, err := validator.ParseFile(docPath, fileType)
 	if err != nil {
 		return fmt.Errorf("failed to parse document %q: %w", docPath, err)

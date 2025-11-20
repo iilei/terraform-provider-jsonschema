@@ -1,21 +1,22 @@
 package provider
 
 import (
-validator "github.com/iilei/terraform-provider-jsonschema/pkg/jsonschema"
 	"encoding/json"
 	"testing"
-	
+
 	"github.com/santhosh-tekuri/jsonschema/v6"
+
+	validator "github.com/iilei/terraform-provider-jsonschema/pkg/jsonschema"
 )
 
 // Test the actual validation schema and compiler behavior
 func TestSchemaCompilationAndValidation(t *testing.T) {
 	tests := []struct {
-		name       string
-		schema     string
-		document   string
-		version    string
-		expectErr  bool
+		name      string
+		schema    string
+		document  string
+		version   string
+		expectErr bool
 	}{
 		{
 			name: "draft-07 validation success",
@@ -77,7 +78,7 @@ func TestSchemaCompilationAndValidation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Test schema compilation using v6 API
 			compiler := jsonschema.NewCompiler()
-			
+
 			// Parse the schema JSON
 			var schemaData interface{}
 			if err := json.Unmarshal([]byte(tt.schema), &schemaData); err != nil {
@@ -86,7 +87,7 @@ func TestSchemaCompilationAndValidation(t *testing.T) {
 				}
 				return // Expected parsing error
 			}
-			
+
 			// Add resource and compile
 			schemaURL := "test-schema"
 			if err := compiler.AddResource(schemaURL, schemaData); err != nil {
@@ -95,7 +96,7 @@ func TestSchemaCompilationAndValidation(t *testing.T) {
 				}
 				return // Expected compilation error
 			}
-			
+
 			schema, err := compiler.Compile(schemaURL)
 			if err != nil {
 				if !tt.expectErr {
@@ -118,22 +119,22 @@ func TestSchemaCompilationAndValidation(t *testing.T) {
 			if tt.expectErr && err == nil {
 				t.Errorf("expected validation error but got none")
 			}
-                        if !tt.expectErr && err != nil {
-                                t.Errorf("unexpected validation error: %v", err)
-                        }
-                })
-        }
+			if !tt.expectErr && err != nil {
+				t.Errorf("unexpected validation error: %v", err)
+			}
+		})
+	}
 }
 
 // Test actual validation errors with custom error templates
 func TestValidationErrorTemplateIntegration(t *testing.T) {
 	tests := []struct {
-		name           string
-		schema         string
-		document       string  
-		errorTemplate  string
-		expectedError  string
-		version        string
+		name          string
+		schema        string
+		document      string
+		errorTemplate string
+		expectedError string
+		version       string
 	}{
 		{
 			name: "simple template with validation error",
@@ -145,10 +146,10 @@ func TestValidationErrorTemplateIntegration(t *testing.T) {
 					"age": {"type": "integer", "minimum": 0}
 				}
 			}`,
-			document: `{"name": "John"}`, // Missing required "age"
+			document:      `{"name": "John"}`, // Missing required "age"
 			errorTemplate: "Config error: {{.FullMessage}}",
 			expectedError: "Config error: jsonschema validation failed with 'test://schema.json#'\n- at '': missing property 'age'",
-			version: "draft-07",
+			version:       "draft-07",
 		},
 		{
 			name: "detailed template with all variables",
@@ -158,10 +159,10 @@ func TestValidationErrorTemplateIntegration(t *testing.T) {
 					"port": {"type": "integer", "minimum": 1, "maximum": 65535}
 				}
 			}`,
-			document: `{"port": "8080"}`, // Wrong type - string instead of integer
+			document:      `{"port": "8080"}`, // Wrong type - string instead of integer
 			errorTemplate: "Schema: {{.SchemaFile}} | Error: {{.FullMessage}} | Document: {{.Document}}",
 			expectedError: "Schema: test://schema.json | Error: jsonschema validation failed with 'test://schema.json#'\n- at '/port': got string, want integer | Document: {\"port\": \"8080\"}",
-			version: "draft/2020-12",
+			version:       "draft/2020-12",
 		},
 		{
 			name: "go template syntax",
@@ -170,10 +171,10 @@ func TestValidationErrorTemplateIntegration(t *testing.T) {
 				"items": {"type": "string"},
 				"minItems": 2
 			}`,
-			document: `["single"]`, // Array too short
+			document:      `["single"]`, // Array too short
 			errorTemplate: "Validation failed in {{.SchemaFile}}: {{.FullMessage}}",
 			expectedError: "Validation failed in test://schema.json: jsonschema validation failed with 'test://schema.json#'\n- at '': minItems: got 1, want 2",
-			version: "draft-07",
+			version:       "draft-07",
 		},
 		{
 			name: "ci/cd format template",
@@ -184,10 +185,10 @@ func TestValidationErrorTemplateIntegration(t *testing.T) {
 					"version": {"type": "string", "pattern": "^v[0-9]+\\.[0-9]+\\.[0-9]+$"}
 				}
 			}`,
-			document: `{"version": "invalid-version"}`, // Invalid version format
+			document:      `{"version": "invalid-version"}`, // Invalid version format
 			errorTemplate: "::error file={{.SchemaFile}}::{{.FullMessage}}",
 			expectedError: "::error file=test://schema.json::jsonschema validation failed with 'test://schema.json#'\n- at '/version': 'invalid-version' does not match pattern '^v[0-9]+\\\\.[0-9]+\\\\.[0-9]+$'",
-			version: "draft-06",
+			version:       "draft-06",
 		},
 		{
 			name: "type mismatch with custom message",
@@ -198,17 +199,21 @@ func TestValidationErrorTemplateIntegration(t *testing.T) {
 					"timeout": {"type": "number", "minimum": 0}
 				}
 			}`,
-			document: `{"enabled": "yes", "timeout": -5}`, // Multiple errors
+			document:      `{"enabled": "yes", "timeout": -5}`, // Multiple errors
 			errorTemplate: "Configuration validation failed: {{.FullMessage}} (check your settings)",
 			expectedError: "Configuration validation failed: jsonschema validation failed with 'test://schema.json#'\n- at '/enabled': got string, want boolean\n- at '/timeout': minimum: got -5, want 0 (check your settings)",
-			version: "draft/2019-09",
+			version:       "draft/2019-09",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create provider config with error template
-			config, err := NewProviderConfig(tt.version, tt.errorTemplate, true) // Enable detailed errors for testing
+			config, err := NewProviderConfig(
+				tt.version,
+				tt.errorTemplate,
+				true,
+			) // Enable detailed errors for testing
 			if err != nil {
 				t.Fatalf("failed to create provider config: %v", err)
 			}
@@ -219,7 +224,7 @@ func TestValidationErrorTemplateIntegration(t *testing.T) {
 				t.Fatalf("failed to parse document: %v", err)
 			}
 
-			// Parse the schema  
+			// Parse the schema
 			schemaData, err := validator.ParseJSON5String(tt.schema)
 			if err != nil {
 				t.Fatalf("failed to parse schema: %v", err)
@@ -239,15 +244,15 @@ func TestValidationErrorTemplateIntegration(t *testing.T) {
 
 			// Parse and add schema resource, then compile using v6 API
 			var parsedSchema interface{}
-			if err := json.Unmarshal([]byte(schemaJSON), &parsedSchema); err != nil {
+			if err := json.Unmarshal(schemaJSON, &parsedSchema); err != nil {
 				t.Fatalf("failed to parse schema JSON: %v", err)
 			}
-			
+
 			schemaURL := "test://schema.json"
 			if err := compiler.AddResource(schemaURL, parsedSchema); err != nil {
 				t.Fatalf("failed to add schema resource: %v", err)
 			}
-			
+
 			compiledSchema, err := compiler.Compile(schemaURL)
 			if err != nil {
 				t.Fatalf("failed to compile schema: %v", err)
@@ -260,7 +265,12 @@ func TestValidationErrorTemplateIntegration(t *testing.T) {
 			}
 
 			// Format the error using our error formatter
-			formattedErr := validator.FormatValidationError(validationErr, "test://schema.json", tt.document, tt.errorTemplate)
+			formattedErr := validator.FormatValidationError(
+				validationErr,
+				"test://schema.json",
+				tt.document,
+				tt.errorTemplate,
+			)
 			if formattedErr == nil {
 				t.Fatalf("expected formatted error but got nil")
 			}
@@ -341,7 +351,7 @@ func TestJSON5ValidationIntegration(t *testing.T) {
 			}`,
 			errorTemplate: "JSON5 validation error: {{.FullMessage}}",
 			expectedError: "JSON5 validation error: jsonschema validation failed with 'test://json5-schema.json#'\n- at '/name': minLength: got 2, want 3",
-			expectError: true,
+			expectError:   true,
 		},
 	}
 
@@ -367,15 +377,15 @@ func TestJSON5ValidationIntegration(t *testing.T) {
 
 			compiler := jsonschema.NewCompiler()
 			var parsedSchema interface{}
-			if err := json.Unmarshal([]byte(schemaJSON), &parsedSchema); err != nil {
+			if err := json.Unmarshal(schemaJSON, &parsedSchema); err != nil {
 				t.Fatalf("failed to parse schema JSON: %v", err)
 			}
-			
+
 			schemaURL := "test://json5-schema.json"
 			if err := compiler.AddResource(schemaURL, parsedSchema); err != nil {
 				t.Fatalf("failed to add schema resource: %v", err)
 			}
-			
+
 			compiledSchema, err := compiler.Compile(schemaURL)
 			if err != nil {
 				t.Fatalf("failed to compile schema: %v", err)
@@ -383,7 +393,7 @@ func TestJSON5ValidationIntegration(t *testing.T) {
 
 			// Validate
 			validationErr := compiledSchema.Validate(documentData)
-			
+
 			if tt.expectError {
 				if validationErr == nil {
 					t.Errorf("expected validation error but got none")
@@ -392,7 +402,12 @@ func TestJSON5ValidationIntegration(t *testing.T) {
 
 				// Test error formatting if template provided
 				if tt.errorTemplate != "" && tt.expectedError != "" {
-					formattedErr := validator.FormatValidationError(validationErr, "test://json5-schema.json", tt.document, tt.errorTemplate)
+					formattedErr := validator.FormatValidationError(
+						validationErr,
+						"test://json5-schema.json",
+						tt.document,
+						tt.errorTemplate,
+					)
 					if formattedErr == nil {
 						t.Errorf("expected formatted error but got nil")
 					} else {
@@ -418,37 +433,37 @@ func TestJSON5ValidationIntegration(t *testing.T) {
 // Test configuration resolution between provider and resource levels
 func TestConfigurationResolution(t *testing.T) {
 	tests := []struct {
-		name                      string
-		providerSchemaVersion     string
-		providerErrorTemplate     string
-		resourceSchemaVersion     string
-		resourceErrorTemplate     string
-		expectedFinalVersion      string
+		name                       string
+		providerSchemaVersion      string
+		providerErrorTemplate      string
+		resourceSchemaVersion      string
+		resourceErrorTemplate      string
+		expectedFinalVersion       string
 		expectedFinalErrorTemplate string
 	}{
 		{
-			name:                      "all provider defaults",
-			providerSchemaVersion:     "draft-07",
-			providerErrorTemplate:     "Provider: {{.FullMessage}}",
-			expectedFinalVersion:      "draft-07",
+			name:                       "all provider defaults",
+			providerSchemaVersion:      "draft-07",
+			providerErrorTemplate:      "Provider: {{.FullMessage}}",
+			expectedFinalVersion:       "draft-07",
 			expectedFinalErrorTemplate: "Provider: {{.FullMessage}}",
 		},
 		{
-			name:                      "resource overrides all",
-			providerSchemaVersion:     "draft-07",
-			providerErrorTemplate:     "Provider: {{.FullMessage}}",
-			resourceSchemaVersion:     "draft-04",
-			resourceErrorTemplate:     "Resource: {{.FullMessage}}",
-			expectedFinalVersion:      "draft-04",
+			name:                       "resource overrides all",
+			providerSchemaVersion:      "draft-07",
+			providerErrorTemplate:      "Provider: {{.FullMessage}}",
+			resourceSchemaVersion:      "draft-04",
+			resourceErrorTemplate:      "Resource: {{.FullMessage}}",
+			expectedFinalVersion:       "draft-04",
 			expectedFinalErrorTemplate: "Resource: {{.FullMessage}}",
 		},
 		{
-			name:                      "partial resource override",
-			providerSchemaVersion:     "draft-07",
-			providerErrorTemplate:     "Provider: {{.FullMessage}}",
-			resourceSchemaVersion:     "draft-04",
+			name:                  "partial resource override",
+			providerSchemaVersion: "draft-07",
+			providerErrorTemplate: "Provider: {{.FullMessage}}",
+			resourceSchemaVersion: "draft-04",
 			// resource doesn't specify error template
-			expectedFinalVersion:      "draft-04",
+			expectedFinalVersion:       "draft-04",
 			expectedFinalErrorTemplate: "Provider: {{.FullMessage}}",
 		},
 	}
@@ -456,7 +471,11 @@ func TestConfigurationResolution(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create provider config
-			providerConfig, err := NewProviderConfig(tt.providerSchemaVersion, tt.providerErrorTemplate, false)
+			providerConfig, err := NewProviderConfig(
+				tt.providerSchemaVersion,
+				tt.providerErrorTemplate,
+				false,
+			)
 			if err != nil {
 				t.Fatalf("failed to create provider config: %v", err)
 			}
@@ -477,7 +496,11 @@ func TestConfigurationResolution(t *testing.T) {
 				t.Errorf("expected final version %q, got %q", tt.expectedFinalVersion, finalVersion)
 			}
 			if finalErrorTemplate != tt.expectedFinalErrorTemplate {
-				t.Errorf("expected final error template %q, got %q", tt.expectedFinalErrorTemplate, finalErrorTemplate)
+				t.Errorf(
+					"expected final error template %q, got %q",
+					tt.expectedFinalErrorTemplate,
+					finalErrorTemplate,
+				)
 			}
 		})
 	}
@@ -486,15 +509,15 @@ func TestConfigurationResolution(t *testing.T) {
 // Test edge cases for validation
 func TestValidationEdgeCases(t *testing.T) {
 	tests := []struct {
-		name     string
-		schema   string
-		document string
+		name      string
+		schema    string
+		document  string
 		expectErr bool
 	}{
 		{
-			name: "empty schema",
-			schema: `{}`,
-			document: `{"anything": "goes"}`,
+			name:      "empty schema",
+			schema:    `{}`,
+			document:  `{"anything": "goes"}`,
 			expectErr: false, // Empty schema should allow anything
 		},
 		{
@@ -508,7 +531,7 @@ func TestValidationEdgeCases(t *testing.T) {
 					"testDef": {"type": "string"}
 				}
 			}`,
-			document: `{"test": "value"}`,
+			document:  `{"test": "value"}`,
 			expectErr: false,
 		},
 		{
@@ -544,7 +567,7 @@ func TestValidationEdgeCases(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Compile schema using v6 API
 			compiler := jsonschema.NewCompiler()
-			
+
 			var schemaData interface{}
 			if err := json.Unmarshal([]byte(tt.schema), &schemaData); err != nil {
 				if !tt.expectErr {
@@ -552,7 +575,7 @@ func TestValidationEdgeCases(t *testing.T) {
 				}
 				return
 			}
-			
+
 			schemaURL := "test-schema"
 			if err := compiler.AddResource(schemaURL, schemaData); err != nil {
 				if !tt.expectErr {
@@ -560,7 +583,7 @@ func TestValidationEdgeCases(t *testing.T) {
 				}
 				return
 			}
-			
+
 			schema, err := compiler.Compile(schemaURL)
 			if err != nil {
 				if !tt.expectErr {

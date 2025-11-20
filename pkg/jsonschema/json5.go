@@ -28,7 +28,7 @@ func JSON5ToJSON(content []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return MarshalDeterministic(data)
 }
 
@@ -48,13 +48,13 @@ func (l JSON5FileLoader) Load(url string) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Read and parse the file as JSON5
 	content, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file %q: %w", filePath, err)
 	}
-	
+
 	// Use our existing JSON5 parsing function
 	return ParseJSON5(content)
 }
