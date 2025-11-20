@@ -77,13 +77,8 @@ archives:
 - id: provider
   builds:
     - provider
-  formats: ["tar.gz", "zip"]
+  formats: ["zip"]
   name_template: '{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
-- id: cli
-  builds:
-    - cli
-  formats: ["tar.gz", "zip"]
-  name_template: '{{ .Env.CLI_NAME }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
 
 checksum:
   name_template: '{{ .ProjectName }}_{{ .Version }}_SHA256SUMS'
