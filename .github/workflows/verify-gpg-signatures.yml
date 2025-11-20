@@ -1,0 +1,79 @@
+name: Require GPG Signed Commits
+on: [pull_request]
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      
+      - name: Import trusted maintainer keys
+        if: vars.TRUSTED_GPG_KEYS != ''
+        run: |
+          echo "📥 Importing trusted maintainer GPG keys from repository variable"
+          echo "${{ vars.TRUSTED_GPG_KEYS }}" | gpg --import
+          echo "✅ Trusted keys imported"
+      
+      - name: Import GPG keys from commits
+        run: |
+          # Extract all GPG key IDs from commits in the PR
+          COMMITS=$(git rev-list ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }})
+          echo "Commits to check: $COMMITS"
+          
+          for commit in $COMMITS; do
+            # Get the GPG key ID from the commit
+            KEY_ID=$(git show -s --format='%GK' "$commit")
+            echo "Commit $commit has key ID: '$KEY_ID'"
+            
+            if [ -n "$KEY_ID" ] && [ "$KEY_ID" != "" ]; then
+              echo "📥 Attempting to import GPG key $KEY_ID for commit $commit"
+              
+              # Try to fetch from multiple keyservers with verbose output
+              if gpg --keyserver hkps://keys.openpgp.org --recv-keys "$KEY_ID" 2>&1; then
+                echo "✅ Successfully imported key $KEY_ID from keys.openpgp.org"
+              elif gpg --keyserver hkps://keyserver.ubuntu.com --recv-keys "$KEY_ID" 2>&1; then
+                echo "✅ Successfully imported key $KEY_ID from keyserver.ubuntu.com"
+              elif gpg --keyserver hkps://pgp.mit.edu --recv-keys "$KEY_ID" 2>&1; then
+                echo "✅ Successfully imported key $KEY_ID from pgp.mit.edu"
+              else
+                echo "❌ Could not import key $KEY_ID from any keyserver"
+                exit 1
+              fi
+              
+              # Verify the key was imported
+              if gpg --list-keys "$KEY_ID" &>/dev/null; then
+                echo "✅ Key $KEY_ID is now in keyring"
+              else
+                echo "❌ Key $KEY_ID is NOT in keyring after import attempt"
+                exit 1
+              fi
+            else
+              echo "⚠️  No key ID found for commit $commit (unsigned commit)"
+            fi
+          done
+      
+      - name: Check commit signatures
+        run: |
+          # List commits in PR
+          COMMITS=$(git rev-list ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }})
+          unsigned=0
+          for commit in $COMMITS; do
+            # Get signature verification details
+            SIG_STATUS=$(git verify-commit "$commit" 2>&1) || true
+            if git verify-commit "$commit" &>/dev/null; then
+              echo "✅ Commit $commit is GPG signed"
+            else
+              echo "❌ Commit $commit is not GPG signed or signature cannot be verified!"
+              echo "   Signature details: $SIG_STATUS"
+              unsigned=1
+            fi
+          done
+          if [ "$unsigned" -eq 1 ]; then
+            echo ""
+            echo "ERROR: All commits in pull requests must be GPG signed"
+            echo "Please ensure your commits are signed with 'git commit -S'"
+            exit 1
+          fi
+          echo ""
+          echo "✅ All commits are GPG signed"
