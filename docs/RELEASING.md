@@ -222,10 +222,10 @@ If a stable release has critical issues:
    # Delete tag locally and remotely
    git tag -d v0.6.0
    git push origin :refs/tags/v0.6.0
-   
+
    # Delete GitHub Release manually (not via Terraform Registry)
    ```
-   
+
    **Warning:** Deleting a published Terraform Registry version is not supported. Always prefer patching forward.
 
 ### Troubleshooting
@@ -309,7 +309,7 @@ When releasing pre-releases:
 
 ```
 Week 1: v0.6.0-alpha.1  → Internal testing
-Week 2: v0.6.0-beta.1   → Community testing  
+Week 2: v0.6.0-beta.1   → Community testing
 Week 3: v0.6.0-rc.1     → Final validation
 Week 4: v0.6.0          → Stable release → Terraform Registry
 ```

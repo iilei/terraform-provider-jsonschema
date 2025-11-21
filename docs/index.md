@@ -176,7 +176,7 @@ Redirect remote `$ref` URLs to local files for offline validation:
 data "jsonschema_validator" "api_request" {
   document = "${path.module}/api-request.json"
   schema   = "${path.module}/schemas/api-request.schema.json"
-  
+
   # Map remote URLs to local files
   ref_overrides = {
     "https://api.example.com/schemas/user.schema.json"    = "${path.module}/schemas/user.schema.json"
@@ -187,7 +187,7 @@ data "jsonschema_validator" "api_request" {
 
 **Benefits:**
 - No internet connection required
-- Works in air-gapped/restricted networks  
+- Works in air-gapped/restricted networks
 - Deterministic builds
 - No proxy settings, authentication, or TLS configuration needed
 - No external dependencies in CI/CD
@@ -229,7 +229,7 @@ data "jsonschema_validator" "api_validation" {
 }
 
 data "jsonschema_validator" "legacy_validation" {
-  document       = "${path.module}/legacy-config.json" 
+  document       = "${path.module}/legacy-config.json"
   schema         = "${path.module}/schemas/legacy/service.schema.json"
   schema_version = "draft-04"
 }

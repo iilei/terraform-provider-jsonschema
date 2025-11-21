@@ -23,7 +23,7 @@ output "validated_config" {
 data "jsonschema_validator" "config_with_template" {
   document = "${path.module}/valid-config.json"
   schema   = "${path.module}/config.schema.json"
-  
+
   error_message_template = <<-EOT
     Validation failed ({{.ErrorCount}} errors):
     {{range .Errors}}• {{.DocumentPath}}: {{.Message}}
@@ -32,7 +32,7 @@ data "jsonschema_validator" "config_with_template" {
 }
 
 # Traversal Demo: Schema references with $id fields
-# 
+#
 # Directory structure:
 #   main_schema/config.schema.json (has $id: "./../main_schema/config.schema.json")
 #     ↓ $ref
@@ -47,7 +47,7 @@ data "jsonschema_validator" "config_with_template" {
 data "jsonschema_validator" "traverse_demo_valid" {
   document = "${path.module}/traverse-demo-valid.json"
   schema   = "${path.module}/schemas/traverse_tree_demo/main_schema/config.schema.json"
-  
+
   error_message_template = <<-EOT
     ✅ Document is VALID
     Schema File: {{.SchemaFile}}
@@ -58,17 +58,17 @@ data "jsonschema_validator" "traverse_demo_valid" {
 data "jsonschema_validator" "traverse_demo_invalid" {
   document = "${path.module}/traverse-demo-invalid.json"
   schema   = "${path.module}/schemas/traverse_tree_demo/main_schema/config.schema.json"
-  
+
   error_message_template = <<-EOT
     ═══════════════════════════════════════════════════════════════
     ❌ VALIDATION ERRORS - Schema Traversal Demo
     ═══════════════════════════════════════════════════════════════
-    
+
     Schema File (as you specified it):
       {{.SchemaFile}}
-    
+
     Total Errors: {{.ErrorCount}}
-    
+
     {{range $i, $e := .Errors}}
     ┌─ Error {{add $i 1}} ────────────────────────────────────────────────
     │
@@ -86,7 +86,7 @@ data "jsonschema_validator" "traverse_demo_invalid" {
     │
     └──────────────────────────────────────────────────────────────
     {{end}}
-    
+
     KEY OBSERVATIONS:
     - SchemaFile: Your input path (relative to Terraform config)
     - SchemaPath: Full file:// URI with fragment, regardless of $id

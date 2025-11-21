@@ -8,6 +8,11 @@ linters:
     - staticcheck
     - unused
     - unconvert
+    - bodyclose      # Checks HTTP response body is closed
+    - copyloopvar    # Detects places where loop variables are copied
+    - dupword        # Checks for duplicate words
+    - errorlint      # Problems with error wrapping (Go 1.13+)
+    - noctx          # Finds sending http request without context.Context
   settings:
     dupl:
       threshold: 100

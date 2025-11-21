@@ -65,7 +65,7 @@ Update all instances of `error_message_template` (in provider configuration or d
 data "jsonschema_validator" "example" {
   document = file("config.json")
   schema   = "config.schema.json"
-  
+
   error_message_template = <<-EOT
     Schema: {{.Schema}}
     Location: {{.Path}}
@@ -80,7 +80,7 @@ data "jsonschema_validator" "example" {
 data "jsonschema_validator" "example" {
   document = file("config.json")
   schema   = "config.schema.json"
-  
+
   error_message_template = <<-EOT
     Schema: {{.SchemaFile}}
     Location: {{.DocumentPath}}
@@ -219,7 +219,7 @@ data "jsonschema_validator" "with_refs" {
 data "jsonschema_validator" "with_remote_refs" {
   document = "${path.module}/api-request.json"
   schema   = "${path.module}/schemas/api-request.schema.json"
-  
+
   # Map remote URLs to local files
   # When the schema contains $ref: "https://api.example.com/schemas/user.schema.json",
   # it will use the local file instead
@@ -335,7 +335,7 @@ The provider automatically detects document format from file extension:
 The `ref_overrides` parameter allows you to redirect remote schema URLs to local files, enabling:
 
 - **Offline validation**: No internet connection required
-- **Air-gapped environments**: Works in restricted networks  
+- **Air-gapped environments**: Works in restricted networks
 - **Version control**: Keep all schemas in your repository
 - **Deterministic builds**: Same inputs always produce same results
 - **Performance**: No network latency

@@ -10,43 +10,43 @@ A |terraform|_ provider for validating JSON, JSON5, YAML, and TOML documents usi
 
 .. warning::
    ⚠️ **Breaking Changes in v0.6.0**
-   
+
    Version 0.6.0 introduces **breaking API changes**:
-   
+
    - **document field**: Now expects a file path instead of content (remove ``file()`` wrapper)
    - **valid_json field**: Renamed from ``validated`` for clarity
    - **force_filetype field**: New optional field to override format detection
    - **Multi-format support**: Added YAML and TOML validation
-   
+
    **Migration required:**
-   
+
    .. code-block:: diff
-   
+
      # Before (v0.5.x)
      data "jsonschema_validator" "config" {
      -  document = file("${path.module}/config.json")
      +  document = "${path.module}/config.json"
         schema   = "${path.module}/config.schema.json"
      }
-     
+
      locals {
      -  config = jsondecode(data.jsonschema_validator.config.validated)
      +  config = jsondecode(data.jsonschema_validator.config.valid_json)
      }
-   
+
    See the full documentation for migration details.
 
 .. warning::
    ⚠️ **Version 0.x Development - Breaking Changes Expected**
-   
+
    This provider is in initial development (0.x.x). Per `semantic versioning <https://semver.org/#spec-item-4>`_, **breaking changes may occur in ANY release** (minor or patch) until version 1.0.0.
-   
+
    **Required actions:**
-   
+
    - **Always pin to a specific version** in production
    - **Review release notes** before upgrading
    - **Test upgrades** in non-production environments first
-   
+
    Stability and standard semver guarantees begin at version 1.0.0.
 
 Features
@@ -227,7 +227,7 @@ Redirect remote ``$ref`` URLs to local files for offline validation:
   data "jsonschema_validator" "api_request" {
     document = "${path.module}/api-request.json"
     schema   = "${path.module}/schemas/api-request.schema.json"
-    
+
     ref_overrides = {
       "https://api.example.com/schemas/user.schema.json" = "${path.module}/schemas/user.schema.json"
     }
@@ -294,25 +294,25 @@ Configuration File Format
 
   # Default schema version (same as Terraform provider)
   schema_version: "draft/2020-12"
-  
+
   # Multiple schema-document mappings
   schemas:
     - path: "config.schema.json"
       documents:
         - "config.json"
         - "config.*.json"
-    
+
     - path: "api/schemas/request.schema.json"
-      documents: 
+      documents:
         - "api/requests/*.json"
       ref_overrides:
         "https://example.com/user.json": "./schemas/user.json"
-    
+
     - path: "k8s.schema.json"
       documents:
         - "manifests/*.yaml"
       force_filetype: "yaml"  # Override auto-detection
-  
+
   # Custom error template (same as Terraform provider)
   error_template: |
     {{range .Errors}}
@@ -325,20 +325,20 @@ Configuration File Format
 
   [tool.jsonschema-validator]
   schema_version = "draft/2020-12"
-  
+
   [[tool.jsonschema-validator.schemas]]
   path = "config.schema.json"
   documents = ["config.json"]
-  
+
   [[tool.jsonschema-validator.schemas]]
   path = "api/request.schema.json"
   documents = ["api/requests/*.json"]
-  
+
   [[tool.jsonschema-validator.schemas]]
   path = "k8s.schema.json"
   documents = ["manifests/*.yaml"]
   force_filetype = "yaml"  # Override auto-detection
-  
+
   [tool.jsonschema-validator.schemas.ref_overrides]
   "https://example.com/user.json" = "./schemas/user.json"
 
@@ -351,16 +351,16 @@ CLI Usage Examples
 
   # JSON file
   jsonschema-validator --schema config.schema.json config.json
-  
+
   # YAML file (auto-detected)
   jsonschema-validator --schema k8s.schema.json deployment.yaml
-  
+
   # TOML file (auto-detected)
   jsonschema-validator --schema app.schema.json config.toml
-  
+
   # JSON5 support
   jsonschema-validator --schema app.schema.json5 app.json5
-  
+
   # Force file type override
   jsonschema-validator --schema api.schema.json --force-filetype yaml data.txt
 
@@ -370,10 +370,10 @@ CLI Usage Examples
 
   # Uses .jsonschema-validator.yaml automatically
   jsonschema-validator
-  
+
   # Explicit config file
   jsonschema-validator --config custom-config.yaml
-  
+
   # Override schema version from config
   jsonschema-validator --schema-version draft/2019-09
 
@@ -384,25 +384,25 @@ CLI Usage Examples
   # Specify schema draft version
   jsonschema-validator --schema-version "draft/2020-12" \
     --schema config.schema.json config.yaml
-  
+
   # Reference overrides (for offline validation)
   jsonschema-validator \
     --schema api.schema.json \
     --ref-override "https://example.com/user.json=./local/user.json" \
     request.json
-  
+
   # Force file type (override extension-based detection)
   jsonschema-validator \
     --schema config.schema.json \
     --force-filetype yaml \
     config.txt
-  
+
   # Custom error template
   jsonschema-validator \
     --schema config.schema.json \
     --error-template '{{range .Errors}}{{.DocumentPath}}: {{.Message}}{{end}}' \
     config.json
-  
+
   # Validate from stdin
   cat config.yaml | jsonschema-validator --schema config.schema.json -
 
@@ -413,7 +413,7 @@ CLI Usage Examples
   export JSONSCHEMA_VALIDATOR_SCHEMA_VERSION="draft/2020-12"
   export JSONSCHEMA_VALIDATOR_SCHEMA="config.schema.json"
   jsonschema-validator config.json
-  
+
   # Use custom environment variable prefix
   export MY_APP_SCHEMA_VERSION="draft/2020-12"
   export MY_APP_SCHEMA="config.schema.json"
@@ -432,7 +432,7 @@ Install the CLI tool first:
 
   # Install latest version
   go install github.com/iilei/terraform-provider-jsonschema/cmd/jsonschema-validator@latest
-  
+
   # Or install specific version
   go install github.com/iilei/terraform-provider-jsonschema/cmd/jsonschema-validator@v0.5.0
 
@@ -479,7 +479,7 @@ Multi-language project with explicit config:
           name: Validate API requests
           args: ['--schema', 'api/request.schema.json']
           files: '^api/requests/.*\.(json|yaml)$'
-        
+
         - id: jsonschema-validator
           name: Validate configuration
           args: ['--schema', 'config.schema.json']
@@ -494,21 +494,21 @@ CI/CD Integration
 
   name: Validate JSON files
   on: [push, pull_request]
-  
+
   jobs:
     validate:
       runs-on: ubuntu-latest
       steps:
         - uses: actions/checkout@v4
-        
+
         - name: Set up Go
           uses: actions/setup-go@v5
           with:
             go-version: '1.23'
-        
+
         - name: Install jsonschema-validator
           run: go install github.com/iilei/terraform-provider-jsonschema/cmd/jsonschema-validator@latest
-        
+
         - name: Validate JSON files
           run: jsonschema-validator  # Uses .jsonschema-validator.yaml
 
@@ -539,10 +539,10 @@ Requirements: |go|_ 1.25+
 
   # Run tests
   go test ./internal/provider/ -v
-  
+
   # Run acceptance tests
   TF_ACC=1 go test ./internal/provider/ -v
-  
+
   # View coverage
   go test ./internal/provider/ -coverprofile=coverage.out
   go tool cover -html=coverage.out
@@ -554,7 +554,7 @@ Requirements: |go|_ 1.25+
 .. |terraform-install-plugin| replace:: install a terraform plugin
 .. _terraform-install-plugin: https://www.terraform.io/docs/plugins/basics.html#installing-a-plugin
 
-.. |user-docs| replace:: User Documentation  
+.. |user-docs| replace:: User Documentation
 .. _user-docs: https://registry.terraform.io/providers/iilei/jsonschema/latest/docs
 
 .. |json-schema| replace:: json-schema

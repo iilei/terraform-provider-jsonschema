@@ -9,19 +9,19 @@ schemas:
   - path: "config.schema.json"
     documents:
       - "config.json"
-  
+
   # Multiple files with glob patterns
   - path: "api/request.schema.json"
     documents:
       - "api/requests/*.json"
       - "api/requests/**/*.json"  # Recursive
-  
+
   # JSON5 support
   - path: "app.schema.json5"
     documents:
       - "app.json5"
       - "app.*.json5"
-  
+
   # With reference overrides (for offline validation)
   - path: "schemas/main.schema.json"
     documents:

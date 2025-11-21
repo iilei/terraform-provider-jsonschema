@@ -59,7 +59,7 @@ The error template demonstrates:
 error_message_template = <<-EOT
   Schema File (as you specified it):
     {{.SchemaFile}}
-  
+
   Schema Path (the actual schema constraint that failed):
     {{.SchemaPath}}
 EOT
@@ -100,4 +100,3 @@ terraform plan 2>&1 | grep -A 30 "Schema Traversal Demo"
 2. **Schema References**: How `$id` and `$ref` work together across directories
 3. **Error Paths**: How error messages report paths (using `file://` URIs, not `$id` values)
 4. **JSON Pointer**: How paths use RFC 6901 format with fragments (e.g., `#/properties/version`)
-

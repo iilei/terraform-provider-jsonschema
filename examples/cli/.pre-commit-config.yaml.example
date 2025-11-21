@@ -17,7 +17,7 @@ repos:
         name: Validate API requests
         args: ['--schema', 'api/request.schema.json']
         files: '^api/requests/.*\.json$'
-      
+
       - id: jsonschema-validator
         name: Validate configuration
         args:
@@ -58,7 +58,7 @@ repos:
           - '--ref-override'
           - 'https://example.com/user.json=./schemas/user.json'
         files: '^configs/production/.*\.json$'
-      
+
       - id: jsonschema-validator-json5
         name: Validate JSON5 configs
         args: ['--schema', 'schemas/app.schema.json5']

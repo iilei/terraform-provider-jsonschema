@@ -3,6 +3,7 @@ package jsonschema
 import (
 	"bytes"
 	"encoding/json"
+	errors2 "errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -37,7 +38,8 @@ func FormatValidationError(err error, schemaPath, document, errorTemplate string
 	var errors []ValidationErrorDetail
 	var fullMessage string
 
-	if validationErr, ok := err.(*jsonschema.ValidationError); ok {
+	var validationErr *jsonschema.ValidationError
+	if errors2.As(err, &validationErr) {
 		// Parse the document to extract actual values for errors
 		var documentData interface{}
 		if parseErr := json.Unmarshal([]byte(document), &documentData); parseErr != nil {
@@ -75,12 +77,12 @@ func FormatValidationError(err error, schemaPath, document, errorTemplate string
 
 	parsed, err := tmpl.Parse(errorTemplate)
 	if err != nil {
-		return fmt.Errorf("template parsing failed: %v", err)
+		return fmt.Errorf("template parsing failed: %w", err)
 	}
 
 	var buf bytes.Buffer
 	if err := parsed.Execute(&buf, ctx); err != nil {
-		return fmt.Errorf("template execution failed: %v", err)
+		return fmt.Errorf("template execution failed: %w", err)
 	}
 
 	return fmt.Errorf("%s", buf.String())

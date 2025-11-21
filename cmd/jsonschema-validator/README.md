@@ -89,9 +89,9 @@ schemas:
     documents:
       - "config.json"
       - "config.*.json"  # Glob patterns supported
-  
+
   - path: "api/schemas/request.schema.json"
-    documents: 
+    documents:
       - "api/requests/*.json"
     # Reference overrides for offline validation
     ref_overrides:
@@ -261,10 +261,10 @@ repos:
         name: Validate API requests
         args: ['--schema', 'api/request.schema.json']
         files: '^api/requests/.*\.json$'
-      
+
       - id: jsonschema-validator
         name: Validate configuration
-        args: 
+        args:
           - '--schema'
           - 'config.schema.json5'
           - '--schema-version'
@@ -307,15 +307,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.23'
-      
+
       - name: Install jsonschema-validator
         run: go install github.com/iilei/terraform-provider-jsonschema/cmd/jsonschema-validator@latest
-      
+
       - name: Validate JSON files
         run: jsonschema-validator  # Uses .jsonschema-validator.yaml
 ```

@@ -21,10 +21,10 @@ data "jsonschema_validator" "api_request" {
   # 1. Full remote schema: https://api.example.com/schemas/user.json
   # 2. Remote schema with anchor fragment: https://api.example.com/schemas/user.json#email-format
   schema = "${path.module}/schemas/api-request.schema.json"
-  
+
   # Document file path (v0.6.0+ API - no file() wrapper needed)
   document = "${path.module}/api-request.json"
-  
+
   # Map remote schema URLs to local files
   # Once a base URL is overridden, anchor fragments are resolved automatically
   # from the local file (e.g., #email-format will be found in user.schema.json)
@@ -39,4 +39,3 @@ output "validated_request" {
   value       = jsondecode(data.jsonschema_validator.api_request.valid_json)
   description = "The validated API request data"
 }
-

@@ -6,7 +6,7 @@ This directory contains example configurations for the `jsonschema-validator` CL
 
 - **`.jsonschema-validator.yaml`** - Standalone configuration file (recommended)
 - **`pyproject.toml.example`** - Configuration for Python projects
-- **`package.json.example`** - Configuration for Node.js projects  
+- **`package.json.example`** - Configuration for Node.js projects
 - **`.pre-commit-config.yaml.example`** - Pre-commit hook configurations
 
 ## Quick Start

@@ -2,6 +2,7 @@ package jsonschema
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -981,8 +982,8 @@ func TestValueFieldPopulationIntegration(t *testing.T) {
 			}
 
 			// Type assert to ValidationError
-			validationErr, ok := err.(*jsonschema.ValidationError)
-			if !ok {
+			var validationErr *jsonschema.ValidationError
+			if !errors.As(err, &validationErr) {
 				t.Fatalf("Expected *jsonschema.ValidationError, got %T", err)
 			}
 

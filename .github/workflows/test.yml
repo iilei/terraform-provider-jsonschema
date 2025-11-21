@@ -12,7 +12,7 @@ on:
     paths-ignore:
       - 'README.md'
   # For systems with an upstream API that could drift unexpectedly (like most SaaS systems, etc.),
-  # we recommend testing at a regular interval not necessarily tied to code changes. This will 
+  # we recommend testing at a regular interval not necessarily tied to code changes. This will
   # ensure you are alerted to something breaking due to an API change, even if the code did not
   # change.
   # schedule:
@@ -91,10 +91,10 @@ jobs:
       run: |
         ./jsonschema-validator --version
         ./jsonschema-validator --help
-        
+
         # Test successful validation
         ./jsonschema-validator -s examples/pre-commit/schema.json examples/pre-commit/valid.json
-        
+
         # Test validation failure (should exit with code 1)
         if ./jsonschema-validator -s examples/pre-commit/schema.json examples/pre-commit/invalid.json 2>&1; then
           echo "ERROR: Expected validation to fail but it passed"
@@ -132,7 +132,7 @@ jobs:
     - name: Get dependencies
       run: |
         go mod download
-        
+
     - name: TF acceptance tests
       timeout-minutes: 10
       env:
@@ -190,14 +190,14 @@ jobs:
       run: |
         set +e  # Don't exit on error
         failed=0
-        
+
         # Find all directories containing main.tf files
-        for example_dir in examples/*/; do 
+        for example_dir in examples/*/; do
           if [ -f "${example_dir}main.tf" ]; then
             echo "=== Testing ${example_dir} ==="
-            
+
             cd "$example_dir"
-            
+
             # Create terraform.rc to use local provider
             cat > ~/.terraformrc << EOF
         provider_installation {
@@ -210,13 +210,13 @@ jobs:
           }
         }
         EOF
-            
+
             # Initialize and plan
             # Remove lock file to avoid checksum issues with locally built provider
             rm -f .terraform.lock.hcl
             output=$(terraform init -no-color 2>&1)
             init_code=$?
-            
+
             if [ $init_code -ne 0 ]; then
               echo "✗ FAILED: terraform init in ${example_dir}"
               echo "$output"
@@ -224,12 +224,12 @@ jobs:
               cd - > /dev/null
               continue
             fi
-            
+
             # Use terraform plan instead of validate
             # Examples with intentional validation errors are OK - only fail on actual errors
             output=$(terraform plan -no-color 2>&1)
             plan_code=$?
-            
+
             # Check if it's a validation error (expected) or actual failure
             if [ $plan_code -eq 0 ]; then
               echo "✓ PASSED: ${example_dir}"
@@ -241,12 +241,12 @@ jobs:
               echo "$output"
               failed=1
             fi
-            
+
             cd - > /dev/null
             echo ""
           fi
         done
-        
+
         exit $failed
 
   # verify CLI tool and pre-commit integration
@@ -308,14 +308,14 @@ jobs:
         # Verify the binary is in PATH
         which jsonschema-validator
         jsonschema-validator --version
-        
+
         # Install pre-commit
         pip install pre-commit
-        
+
         # Test with local config
         pre-commit run --config .pre-commit-config-test.yaml --hook-stage manual --files examples/pre-commit/valid.json
         echo "✓ Pre-commit hook passed for valid file"
-        
+
         # Test that invalid file fails
         if pre-commit run --config .pre-commit-config-test.yaml --hook-stage manual --files examples/pre-commit/invalid.json 2>&1; then
           echo "ERROR: Expected pre-commit to fail but it passed"
