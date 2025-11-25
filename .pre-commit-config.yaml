@@ -5,6 +5,7 @@ repos:
     hooks:
       - id: editorconfig-checker
         alias: ec
+        exclude: '\.go$'  # Go formatting is handled by gofmt and editorconfig-checker yields false positives
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
