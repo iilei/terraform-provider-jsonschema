@@ -1,14 +1,14 @@
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/editorconfig-checker/editorconfig-checker.python
-    rev: 3.0.3
+    rev: 3.6.1
     hooks:
       - id: editorconfig-checker
         alias: ec
         exclude: '\.go$'  # Go formatting is handled by gofmt and editorconfig-checker yields false positives
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: v6.0.0
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
@@ -18,10 +18,10 @@ repos:
         args: ['--fix=lf']
 
   - repo: https://github.com/golangci/golangci-lint
-    rev: v2.6.2  # Use the latest version from https://github.com/golangci/golangci-lint/releases
+    rev: v2.12.1  # Use the latest version from https://github.com/golangci/golangci-lint/releases
     hooks:
-      - id: golangci-lint
-        args: [--fix, --timeout=5m]
+      - id: golangci-lint-full
+      - id: golangci-lint-fmt
 
   - repo: local
     hooks:

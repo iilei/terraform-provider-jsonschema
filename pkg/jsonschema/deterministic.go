@@ -52,7 +52,7 @@ func sortKeys(data interface{}) interface{} {
 		}
 		return result
 
-	case reflect.Ptr:
+	case reflect.Pointer:
 		if v.IsNil() {
 			return nil
 		}

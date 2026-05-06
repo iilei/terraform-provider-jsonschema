@@ -3,7 +3,7 @@
 
 repos:
   - repo: https://github.com/iilei/terraform-provider-jsonschema
-    rev: v0.1.0  # Use the latest version from releases
+    rev: v0.6.1  # Use the latest version from releases
     hooks:
       # Example 1: Validate with explicit schema path
       - id: jsonschema-validator
