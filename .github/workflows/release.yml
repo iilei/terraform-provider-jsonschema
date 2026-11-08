@@ -49,6 +49,22 @@ jobs:
         with:
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           passphrase: ${{ secrets.PASSPHRASE }}
+          # GPG_PRIVATE_KEY holds only the signing subkey (primary key is kept offline),
+          # so target the subkey explicitly; otherwise the action tries to unlock the
+          # primary stub and fails with "Not found <GPG Agent>".
+          fingerprint: 6B1667EFE795957739DCC0ECE47E882C7D4400F1
+      -
+        # Fail fast (before the multi-minute build) if the key cannot sign,
+        # e.g. because the key or its signing subkey has expired.
+        name: Verify GPG key can sign
+        env:
+          GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
+        run: |
+          gpg --list-secret-keys --list-options show-unusable-subkeys "$GPG_FINGERPRINT"
+          if ! echo "preflight" | gpg --batch --local-user "$GPG_FINGERPRINT" --detach-sign --output /dev/null; then
+            echo "::error::GPG key $GPG_FINGERPRINT cannot sign (expired/revoked key or subkey?). Extend its expiry and update the GPG_PRIVATE_KEY secret."
+            exit 1
+          fi
       -
         name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
