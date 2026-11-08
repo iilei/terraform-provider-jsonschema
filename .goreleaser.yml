@@ -124,8 +124,8 @@ release:
   draft: false
   # Set to true to create a prerelease
   prerelease: auto
-  # Set to true to make the release editable
-  make_latest: false
+  # Mark the new release as "Latest" on GitHub (pre-releases are never marked latest)
+  make_latest: true
 
 signs:
   - artifacts: checksum
